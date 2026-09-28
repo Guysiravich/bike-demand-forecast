@@ -1,0 +1,21 @@
+# Secrets and local configuration. Never commit.
+cloud.env
+*.env
+!cloud.env.example
+
+# Data: tracked by DVC, not Git
+/data/raw/hour.csv
+/data/raw/*.zip
+
+# Local state
+.local-store/
+mlflow.db
+mlruns/
+mlartifacts/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/

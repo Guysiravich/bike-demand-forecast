@@ -1,0 +1,52 @@
+# Continuous integration. Cheap checks first, so a mistake fails in seconds.
+# Deployment (cd.yml) comes after the proposal is approved, and runs only on green main.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0          # the scanner refuses a shallow clone rather than pass it
+      - name: Scan history for credentials
+        run: python3 scripts/scan_secrets.py
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install (hash-checked)
+        run: |
+          pip install --upgrade pip
+          pip install --require-hashes -r requirements.txt
+      - name: Lint
+        run: ruff check src/ cloudlayer/ scripts/ tests/
+      - name: Portability audit
+        run: python scripts/portability_audit.py
+      - name: Tests, including the frozen-feed alert test
+        # tests/test_frozen_feed_alert.py is the project brief's required test: if the feed
+        # repeats for three hours the alert must fire. If detection breaks, this step fails.
+        run: pytest -q
+
+  build:
+    needs: [secrets, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build the job image
+        run: docker buildx build --platform linux/amd64 -t bike-forecast:${{ github.sha }} --load .
