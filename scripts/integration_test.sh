@@ -10,7 +10,12 @@ set -euo pipefail
 
 TAG="${1:-dev}"
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+# The containers write as uid 10001; remove their files from inside a container, then the dir.
+cleanup() {
+  docker run --rm --user 0 -v "$WORK:/work" --entrypoint sh "bike-job:$TAG" -c 'rm -rf /work/*'     >/dev/null 2>&1 || true
+  rm -rf "$WORK"
+}
+trap cleanup EXIT
 chmod a+rwx "$WORK"
 mkdir -p "$WORK/store" && chmod a+rwx "$WORK/store"
 

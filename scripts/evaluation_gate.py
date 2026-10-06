@@ -10,7 +10,7 @@ test set would leave no honest estimate (course Session 2); test error is report
      ahead. A model that cannot is worse than having no model.
   2. The candidate beats the version `production` serves by more than seed noise. MIN_IMPROVEMENT
      is twice the standard deviation of val_mae across seeds 1-5 of the same configuration
-     (reports/seed-variance.md): a smaller margin promotes noise, a larger one blocks real gains.
+     (reports/runs.md): a smaller margin promotes noise, a larger one blocks real gains.
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-MIN_IMPROVEMENT = 0.30        # rentals/hour of val_mae: 2 x seed std (reports/seed-variance.md)
+MIN_IMPROVEMENT = 1.66        # rentals/hour of val_mae: 2 x 0.829, the seed std (reports/runs.md)
 
 
 def incumbent_val_mae(alias: str) -> float | None:
