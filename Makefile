@@ -9,7 +9,7 @@ TAG   ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 BASE_IMAGE := python:3.11-slim@sha256:9534e5a8e315485d4061ed659af0fd78a284c015f9b73661b41d6bab25604534
 
 .PHONY: help setup lock data validate test lint portability-audit scan-secrets check \
-        train register simulate simulate-freeze false-alarms image clean
+        train register promote rollback models simulate simulate-freeze false-alarms image clean
 
 help:
 	@grep -E "^[a-zA-Z_-]+:.*?## .*$$" $(MAKEFILE_LIST) | awk -F":.*?## " "{printf \"  %-18s %s\\n\", \$$1, \$$2}"
@@ -20,8 +20,8 @@ setup: ## Install the pinned dependencies into the active environment
 
 lock: ## Recompile requirements.txt with hashes, inside the pinned base image
 	docker run --rm -v "$$PWD:/w" -w /w $(BASE_IMAGE) sh -c \
-	  "pip install -q pip-tools && pip-compile --allow-unsafe --generate-hashes --strip-extras \
-	   --output-file=requirements.txt requirements.in"
+	  "pip install -q uv==0.12.23 && uv pip compile --generate-hashes --python-version 3.11 \
+	   --python-platform x86_64-manylinux_2_28 --output-file requirements.txt requirements.in"
 
 data: ## Fetch hour.csv from UCI, checksum verified (or: dvc pull)
 	$(PYTHON) scripts/download_data.py
@@ -48,6 +48,15 @@ train: ## Train, evaluate against the baseline, log to MLflow
 
 register: ## Train and register a version with lineage
 	$(PYTHON) -m src.train --register
+
+promote: ## Point the `champion` alias at VERSION:  make promote VERSION=3
+	$(PYTHON) -m src.registry promote $(VERSION)
+
+rollback: ## Bad model: point `champion` back at the previous version
+	$(PYTHON) -m src.registry rollback
+
+models: ## List registered versions, their aliases and lineage
+	$(PYTHON) -m src.registry show
 
 simulate: ## Twelve simulated hours with a healthy feed
 	$(PYTHON) scripts/simulate.py --ticks 12

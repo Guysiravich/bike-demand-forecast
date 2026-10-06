@@ -7,7 +7,7 @@ send trucks before a station runs empty. When the weather feed goes stale, the j
 to "same hour last week", marks its output **degraded**, and an alert fires. That stale feed
 is the failure this project was designed around.
 
-> **Status (2026-09-28): local build, before proposal approval.** Everything below runs on
+> **Status (2026-10-06): local build, before proposal approval.** Everything below runs on
 > one machine with no cloud account. The Azure parts — storage, the scheduled job, the
 > dashboard and alert rules, CD — are designed (see `cloudlayer/azure.py` and the project
 > plan) and will be built after approval.
@@ -18,9 +18,11 @@ Needs Python 3.11+ and, for the image, Docker. On Windows, use WSL2.
 
 ```bash
 make setup            # pinned dependencies
-make data             # hour.csv from UCI, checksum verified   (later: dvc pull)
+make data             # hour.csv from UCI, sha256 verified (DVC-tracked; `dvc pull` once the remote exists)
 make check            # lint, portability audit, secret scan, tests
 make register         # train, compare with the baseline, register a version with lineage
+make models           # registered versions, which one is `champion`, their lineage
+make rollback         # bad model: point `champion` back at the previous version
 make simulate         # twelve simulated hours, healthy feed
 make simulate-freeze  # the planned failure: the feed freezes at hour 3
 ```
@@ -66,7 +68,9 @@ and a health check passes the whole time. Three signals catch it:
 
 **Response.** Not a model rollback — the model is not what is wrong. The job switches to
 "same hour last week", which needs no weather, and marks every row `degraded` with the reason.
-A bad *model* is handled differently: point the `champion` alias back at the previous version.
+A bad *model* is handled differently: `make rollback` points the `champion` alias back at the
+previous version, and the next run serves it (2.5 s locally; `tests/test_registry.py`).
+Both drills and what they revealed: `reports/failure-drill.md`.
 
 **The test the brief asks for** — `tests/test_frozen_feed_alert.py`: freeze the feed, and the
 alert must fire within three hours, with every later forecast degraded. It runs in CI; if
@@ -100,9 +104,9 @@ tests/          data contract, features (leakage, train/serve consistency), fore
 
 | What | Where |
 |---|---|
-| Python dependencies, with hashes | `requirements.txt`, compiled from `requirements.in` by `make lock` inside the pinned base image |
+| Python dependencies, with hashes | `requirements.txt`, compiled from `requirements.in` by `make lock` (uv, pinned) inside the pinned base image |
 | Base image | `python:3.11-slim@sha256:9534e5a8…`, the same bytes the course labs use |
-| Data | the UCI file's sha256 in `scripts/download_data.py`; DVC tracking after approval |
+| Data | the UCI file's sha256 in `scripts/download_data.py`; `data/raw/hour.csv.dvc` (md5 copied onto every registered version as `data_version`). The DVC remote is added with the cloud storage |
 | Seed | `20260920`, in `src/config.py` |
 
 ## Team

@@ -1,0 +1,6 @@
+outs:
+- md5: d50bd5a6f55131e72a7bedc334e2fce1
+  size: 1156736
+  isexec: true
+  hash: md5
+  path: hour.csv

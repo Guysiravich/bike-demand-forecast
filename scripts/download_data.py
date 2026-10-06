@@ -22,7 +22,7 @@ from src import config
 URL = "https://archive.ics.uci.edu/static/public/275/bike+sharing+dataset.zip"
 # Recorded from the first download. If UCI ever changes the file, this stops the build
 # instead of silently training on different data.
-EXPECTED_SHA256 = ""
+EXPECTED_SHA256 = "e03de4ee4ef4dc376ac6e04bf829673c6269e8eba5c60fa121640fa2f829504f"
 
 
 def main() -> int:

@@ -27,14 +27,22 @@ time, rentals now, same hour yesterday, same hour last week (`src/features.py`).
 UCI Bike Sharing Dataset, CC BY 4.0, 17,379 hours. Train 2011-01 to 2012-06, validate
 2012-07 to 2012-09, test 2012-10 to 2012-12.
 
-## Performance «measured»
+## Performance
+
+Measured from `reports/train_metrics.json`, version 1 (local run, seed 20260920). Rentals
+per hour; the hourly mean in the data is about 190.
 
 | | Model | Baseline: same hour last week |
 |---|---|---|
-| MAE, all horizons, validation | | |
-| MAE, 1 hour ahead, validation | | |
-| MAE, 24 hours ahead, validation | | |
-| MAE, all horizons, test | | |
+| MAE, all horizons, validation | 55.1 | 55.9 |
+| MAE, 1 hour ahead, validation | 50.7 | 56.0 |
+| MAE, 24 hours ahead, validation | 57.4 | 55.8 |
+| MAE, all horizons, test | 55.8 | 70.5 |
+
+Accuracy carries no marks in this project and the model was not tuned. It matters for one
+thing: the accuracy alert fires when the live 1-hour error passes **76.1** (1.5 × the
+validation 1-hour MAE), and that number is stored on the registered version. Training twice
+on the same commit and data gave identical errors to the last digit.
 
 ## When not to trust it
 

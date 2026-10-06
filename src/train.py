@@ -29,7 +29,11 @@ HYPERPARAMETERS = {"loss": "poisson", "max_iter": 300, "learning_rate": 0.05,
 # skops will only rebuild the types named here (see Lab 3: an untrusted type in a registered
 # model made the serving container refuse to load it). Filled from the first training run's
 # report of what the model contains; every entry is a scikit-learn internal we built ourselves.
-TRUSTED_TYPES: list[str] = []
+#   TreePredictor  the fitted trees. skops flags it because a crafted file can hold
+#                  out-of-range node indices; ours come from our own fit, never a download.
+TRUSTED_TYPES: list[str] = [
+    "sklearn.ensemble._hist_gradient_boosting.predictor.TreePredictor",
+]
 
 
 def git_commit() -> str:
@@ -127,6 +131,11 @@ def main() -> int:
         from src import registry
         version = registry.register(cfg, run_id, lineage, metrics)
         print(f"registered {cfg.model_name} version {version}")
+        # The first version has nothing to compete with, so it serves. After that a new
+        # version serves only when someone runs `make promote VERSION=...`.
+        if version == "1":
+            registry.promote(cfg, version)
+            print(f"{cfg.model_name}: champion -> {version} (first version)")
     return 0
 
 
