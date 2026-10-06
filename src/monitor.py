@@ -13,7 +13,7 @@ metrics, which page a person. Keep the thresholds in one place: src/config.py.
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 
 from src.config import Config
 
@@ -28,6 +28,7 @@ class Signals:
     rolling_mae_1h: float | None
     job_duration_s: float
     degraded: bool
+    weather_problems: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -37,7 +38,8 @@ def degraded_reasons(signals: Signals, cfg: Config) -> list[str]:
     """Why the job should not trust the weather this hour. Empty means it may."""
     reasons = []
     if not signals.weather_valid:
-        reasons.append("weather reading failed validation")
+        detail = "; ".join(signals.weather_problems) or "unknown"
+        reasons.append(f"weather reading failed validation: {detail}")
     if signals.weather_age_min > cfg.weather_max_age_min:
         reasons.append(f"weather is {signals.weather_age_min:.0f} min old "
                        f"(limit {cfg.weather_max_age_min})")

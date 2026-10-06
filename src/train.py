@@ -1,11 +1,16 @@
-"""Train the demand model, compare it with the baseline it must beat, and track the run.
+"""Training entry point.
 
-    python -m src.train                 # train, evaluate, log to MLflow
-    python -m src.train --register      # ... and register a version with its lineage
+Run locally:      python -m src.train --max-leaf-nodes 31
+Run in Docker:    make reproduce
+Run managed:      make train-remote
+
+Every run logs: all hyperparameters, the seed, validation AND test metrics separately, the
+data fingerprint and DVC version, and the Git commit (Lab 1, Task 5). A metric that cannot be
+traced to code and data is not evidence of anything. Registration is a separate step,
+`make register RUN_ID=<id>` (Lab 2, Task 4).
 
 Model accuracy carries no marks in this project (project brief); the model is deliberately
-plain. What matters is that the run is reproducible and traceable: fixed seed, time-ordered
-split, data fingerprint and commit logged, lineage copied onto the registered version.
+plain. It is reported against the baseline it falls back to, "same hour last week".
 """
 from __future__ import annotations
 
@@ -20,15 +25,12 @@ import pandas as pd
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
-from src import config, data
+from src import config, data, seeds
 from src.features import FEATURES, training_frame
 
-HYPERPARAMETERS = {"loss": "poisson", "max_iter": 300, "learning_rate": 0.05,
-                   "max_leaf_nodes": 31, "min_samples_leaf": 40}
-
-# skops will only rebuild the types named here (see Lab 3: an untrusted type in a registered
-# model made the serving container refuse to load it). Filled from the first training run's
-# report of what the model contains; every entry is a scikit-learn internal we built ourselves.
+# skops will only rebuild the types named here (course Lab 3: an untrusted type in a
+# registered model made the serving container refuse to load it). Filled from the first
+# training run's report of what the model contains.
 #   TreePredictor  the fitted trees. skops flags it because a crafted file can hold
 #                  out-of-range node indices; ours come from our own fit, never a download.
 TRUSTED_TYPES: list[str] = [
@@ -41,16 +43,23 @@ def git_commit() -> str:
         return subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
                               check=True, cwd=config.REPO_ROOT).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
+        # Inside a container the image has no .git (.dockerignore); a managed job's
+        # submitter passes the commit it built from.
         return os.environ.get("GIT_COMMIT", "unknown")
 
 
-def dvc_md5(dvc_file: Path) -> str:
-    if not dvc_file.exists():
-        return "unversioned"
-    for line in dvc_file.read_text(encoding="utf-8").splitlines():
-        if line.strip().startswith("- md5:") or line.strip().startswith("md5:"):
-            return line.split(":", 1)[1].strip()
-    return "unknown"
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="Bike demand — reproducible training")
+    p.add_argument("--learning-rate", type=float, default=0.05)
+    p.add_argument("--max-iter", type=int, default=300)
+    p.add_argument("--max-leaf-nodes", type=int, default=31)
+    p.add_argument("--min-samples-leaf", type=int, default=40)
+    p.add_argument("--seed", type=int, default=seeds.DEFAULT_SEED)
+    p.add_argument("--experiment", default="bike-demand")
+    p.add_argument("--run-name", default=None)
+    p.add_argument("--metrics-out", type=Path, default=None,
+                   help="Write final metrics as JSON. Used by `make verify` and `make register`.")
+    return p.parse_args()
 
 
 def scores(truth: pd.Series, predicted: np.ndarray) -> dict[str, float]:
@@ -63,23 +72,19 @@ def baseline_predictions(frame: pd.DataFrame) -> np.ndarray:
     return frame["cnt_lag168"].fillna(frame["cnt_lag24"]).fillna(frame["cnt_now"]).to_numpy()
 
 
-def evaluate(frame: pd.DataFrame, predicted: np.ndarray, label: str) -> dict[str, float]:
-    out = {}
-    for name, value in scores(frame["cnt"], predicted).items():
-        out[f"{label}_{name}"] = value
+def evaluate(frame: pd.DataFrame, predicted: np.ndarray, prefix: str) -> dict[str, float]:
+    out = {f"{prefix}_{name}": value for name, value in scores(frame["cnt"], predicted).items()}
     for h in (1, 6, 24):
         mask = (frame["horizon"] == h).to_numpy()
-        out[f"{label}_mae_h{h}"] = float(mean_absolute_error(frame["cnt"][mask], predicted[mask]))
+        out[f"{prefix}_mae_h{h}"] = float(mean_absolute_error(frame["cnt"][mask], predicted[mask]))
     return out
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--register", action="store_true")
-    ap.add_argument("--experiment", default="bike-demand")
-    args = ap.parse_args()
+def main() -> None:
+    args = parse_args()
+    cfg = config.load(strict=False)
+    seed = seeds.set_all(args.seed)
 
-    cfg = config.load()
     raw = data.load_raw(cfg.raw_path)
     problems = data.validate(raw)
     if problems:
@@ -87,23 +92,24 @@ def main() -> int:
 
     frame = training_frame(raw, range(1, cfg.forecast_horizon_h + 1))
     train, val, test = data.split_by_time(frame)
-    model = HistGradientBoostingRegressor(random_state=cfg.seed, **HYPERPARAMETERS)
+    params = {"loss": "poisson", "learning_rate": args.learning_rate, "max_iter": args.max_iter,
+              "max_leaf_nodes": args.max_leaf_nodes, "min_samples_leaf": args.min_samples_leaf}
+    model = HistGradientBoostingRegressor(random_state=seed, **params)
     model.fit(train[FEATURES], train["cnt"])
 
     metrics: dict[str, float] = {}
-    for split_name, split in (("val", val), ("test", test)):
-        metrics |= evaluate(split, np.clip(model.predict(split[FEATURES]), 0, None),
-                            f"{split_name}_model")
-        metrics |= evaluate(split, baseline_predictions(split), f"{split_name}_baseline")
+    for name, split in (("val", val), ("test", test)):
+        metrics |= evaluate(split, np.clip(model.predict(split[FEATURES]), 0, None), name)
+        metrics |= evaluate(split, baseline_predictions(split), f"{name}_baseline")
     # The accuracy alert fires when the live 1-hour error runs well above what validation
-    # promised. 1.5x is a starting point, to be revisited against the simulation's own noise.
-    metrics["mae_alert_threshold"] = 1.5 * metrics["val_model_mae_h1"]
+    # promised. 1.5x is a starting point; reports/failure-drill.md checks it against the
+    # simulation's own noise.
+    metrics["mae_alert_threshold"] = 1.5 * metrics["val_mae_h1"]
 
     lineage = {
         "git_commit": git_commit(),
         "data_fingerprint": data.fingerprint(cfg.raw_path),
-        "data_version": dvc_md5(cfg.raw_path.with_suffix(".csv.dvc")),
-        "seed": str(cfg.seed),
+        "data_version": data.dvc_hash(cfg.raw_path.with_suffix(".csv.dvc")),
         "training_job_id": os.environ.get("TRAINING_JOB_ID", "local"),
         "image_digest": os.environ.get("IMAGE_DIGEST", "local"),
     }
@@ -113,31 +119,23 @@ def main() -> int:
 
     mlflow.set_tracking_uri(cfg.mlflow_tracking_uri)
     mlflow.set_experiment(args.experiment)
-    with mlflow.start_run() as run:
-        mlflow.log_params({**HYPERPARAMETERS, "features": ",".join(FEATURES),
+    with mlflow.start_run(run_name=args.run_name) as run:
+        mlflow.log_params({**params, "seed": seed, "features": ",".join(FEATURES),
                            "rows_train": len(train), "rows_val": len(val), "rows_test": len(test)})
         mlflow.log_metrics(metrics)
         mlflow.set_tags(lineage)
-        mlflow.sklearn.log_model(model, name="model", skops_trusted_types=TRUSTED_TYPES or None)
+        mlflow.sklearn.log_model(model, name="model", skops_trusted_types=TRUSTED_TYPES)
         run_id = run.info.run_id
 
-    cfg.reports_dir.mkdir(parents=True, exist_ok=True)
-    report = {"run_id": run_id, "metrics": metrics, "lineage": lineage}
-    report_path = cfg.reports_dir / "train_metrics.json"
-    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
-    print(json.dumps(report, indent=2))
-
-    if args.register:
-        from src import registry
-        version = registry.register(cfg, run_id, lineage, metrics)
-        print(f"registered {cfg.model_name} version {version}")
-        # The first version has nothing to compete with, so it serves. After that a new
-        # version serves only when someone runs `make promote VERSION=...`.
-        if version == "1":
-            registry.promote(cfg, version)
-            print(f"{cfg.model_name}: champion -> {version} (first version)")
-    return 0
+    result = {"run_id": run_id, **metrics}
+    print(json.dumps({"run_id": run_id, "seed": seed, "val_mae": round(metrics["val_mae"], 4),
+                      "test_mae": round(metrics["test_mae"], 4),
+                      "test_baseline_mae": round(metrics["test_baseline_mae"], 4),
+                      **lineage}, indent=2))
+    if args.metrics_out:
+        args.metrics_out.parent.mkdir(parents=True, exist_ok=True)
+        args.metrics_out.write_text(json.dumps(result, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()

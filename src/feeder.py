@@ -13,6 +13,8 @@ Store layout (through the adapter, so the same code runs locally and in the clou
 """
 from __future__ import annotations
 
+import json
+
 import pandas as pd
 
 from cloudlayer.base import CloudAdapter
@@ -48,6 +50,22 @@ def set_mode(adapter: CloudAdapter, mode: str) -> None:
     adapter.write_json("control/feed_mode.json", {"mode": mode})
 
 
+def read_mode(adapter: CloudAdapter) -> str:
+    """The feed mode from the control document. Anything that is not a known mode — a
+    missing key, a typo, a number, a document that is not JSON at all — is read as
+    "normal" and said so in the log, rather than crashing the feeder or freezing it."""
+    try:
+        control = adapter.read_json("control/feed_mode.json")
+    except ValueError as exc:   # not JSON
+        print(json.dumps({"event": "bad_control", "error": type(exc).__name__}), flush=True)
+        return "normal"
+    mode = control.get("mode") if isinstance(control, dict) else None
+    if control is not None and mode not in MODES:
+        print(json.dumps({"event": "bad_control", "mode": repr(mode)[:40]}), flush=True)
+        return "normal"
+    return mode or "normal"
+
+
 def tick(adapter: CloudAdapter, world: pd.DataFrame, start: pd.Timestamp | None = None) -> dict:
     """Advance the clock one hour and deliver the feed. `world` is the hourly-indexed data.
 
@@ -62,7 +80,7 @@ def tick(adapter: CloudAdapter, world: pd.DataFrame, start: pd.Timestamp | None 
         sim_time = pd.Timestamp(clock["sim_time"]) + pd.Timedelta(hours=1)
     adapter.write_json("clock.json", {"sim_time": sim_time.isoformat()})
 
-    mode = (adapter.read_json("control/feed_mode.json") or {"mode": "normal"})["mode"]
+    mode = read_mode(adapter)
     latest = adapter.read_json("weather/latest.json")
 
     if mode == "frozen" and latest is not None:
@@ -80,3 +98,39 @@ def tick(adapter: CloudAdapter, world: pd.DataFrame, start: pd.Timestamp | None 
         return {"sim_time": sim_time, "mode": mode, "published": True}
     # The source has no row for this hour: no reading is published, and its age grows.
     return {"sim_time": sim_time, "mode": mode, "published": False}
+
+
+def main() -> int:
+    """python -m src.feeder                 one tick: advance the clock, deliver the feed
+       python -m src.feeder --mode frozen   flip the feed (the planned failure) — make freeze
+       python -m src.feeder --mode normal   and back — make unfreeze
+
+    The scheduled feeder job runs the first form; the demo runs the other two by hand.
+    """
+    import argparse
+
+    from cloudlayer.factory import get_adapter
+    from src import config, data
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--mode", choices=MODES, default=None)
+    ap.add_argument("--start", default="2012-10-08T00:00",
+                    help="first simulated hour, inside the test period; used once")
+    args = ap.parse_args()
+
+    cfg = config.load()
+    adapter = get_adapter(cfg)
+    if args.mode:
+        set_mode(adapter, args.mode)
+        print(json.dumps({"event": "feed_mode", "mode": args.mode}), flush=True)
+        return 0
+    if not cfg.raw_path.exists():
+        adapter.download(adapter.object_uri("data/raw/hour.csv"), str(cfg.raw_path))
+    world = data.hourly(data.load_raw(cfg.raw_path))
+    fed = tick(adapter, world, start=pd.Timestamp(args.start))
+    print(json.dumps({"event": "tick", **fed}, default=str), flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

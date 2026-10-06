@@ -1,0 +1,58 @@
+# Service level objectives (course Lab 4, Task 4): a target, a window, and what we do when the
+# error budget is spent. The third field is where the thinking is — an SLO without a stated
+# response to exhaustion is a wish, not an objective.
+#
+# Who reads the forecast: the dispatch team, planning truck runs and shifts for the next 24
+# hours. A forecast an hour late is a plan made on the last one; a wrong forecast sends trucks
+# to the wrong places. The targets are set from that, not from what a web shop would need.
+# Thresholds live in cloud.env and src/config.py; the numbers here must match them.
+
+service: bike-forecast
+
+objectives:
+  - name: freshness
+    # The forecast for hour h+1 must exist before hour h+1 starts.
+    target: 0.99
+    window: 7d
+    measurement: "runs that wrote forecasts/latest.json before the hour they cover / scheduled runs"
+    on_budget_exhausted: |
+      Page the platform owner. Dispatch keeps planning on the last good forecast plus the
+      "same hour last week" table, which needs no job at all. No feature work ships until the
+      cause — a failing schedule, a slow image pull, the tracking server down — is fixed.
+
+  - name: weather_age
+    target_max_minutes: 60          # WEATHER_MAX_AGE_MIN
+    window: per run
+    measurement: "weather_age_min: issue time minus the reading's own observation time"
+    on_budget_exhausted: |
+      Not a budget: every breach acts at once. The job serves "same hour last week" and marks
+      the output degraded (the planned failure). The alert pages the person on call — who, in
+      the drill, is not the person who caused it — to fix the feed, never to retrain the model
+      (README, "Retrain, roll back, or no action").
+
+  - name: job_duration
+    target_max_seconds: 300         # JOB_MAX_DURATION_S; also the platform's replica timeout
+    window: per run
+    measurement: "job_duration_s"
+    on_budget_exhausted: |
+      A run that reaches 300 s is killed by the platform rather than left to overlap the next
+      tick. Two in a day opens a ticket for the next working day: the first suspect is the
+      model load from the registry, which the job does once per run.
+
+  - name: success
+    target: 0.99                    # the proposal's "99% of hourly runs succeed"
+    window: 30d
+    measurement: "job_success over scheduled runs; failed executions count as 0"
+    on_budget_exhausted: |
+      Freeze deploys (CD) until the 30-day window is back inside budget: only fixes for the
+      cause and rollbacks ship. If the cause was the platform rather than a deploy, revisit
+      the target instead of freezing work that did not cause it.
+
+  - name: accuracy
+    target: "rolling 1-hour MAE under the version's mae_alert_threshold (1.5 x validation)"
+    window: rolling 6 runs
+    measurement: "rolling_mae_1h, scored when the actual rentals for the hour arrive"
+    on_budget_exhausted: |
+      Check the feed first (pipeline breakage looks like drift). If the inputs are healthy and
+      the error stays high for a day, roll back with `make rollback`; retrain only once the
+      cause is understood.

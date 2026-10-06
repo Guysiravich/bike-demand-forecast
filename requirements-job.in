@@ -1,0 +1,10 @@
+# The hourly job's runtime dependencies (course Lab 3: requirements-serve.in). Compile with
+# hashes inside the pinned base image:  make lock
+scikit-learn==1.8.0
+pandas==3.0.2
+numpy==2.4.4
+mlflow==3.16.0
+joblib==1.4.2
+# The job reads and writes Blob Storage and posts metrics as its managed identity.
+azure-identity==1.25.3
+azure-storage-blob==12.30.1

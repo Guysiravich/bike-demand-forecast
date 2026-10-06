@@ -4,7 +4,7 @@
     python scripts/simulate.py --ticks 12 --freeze-at 3        # the planned failure
     python scripts/simulate.py --ticks 12 --freeze-at 3 --unfreeze-at 8
 
-Uses the registered model (MODEL_VERSION or the `champion` alias) and a fresh local store,
+Uses the registered model (MODEL_VERSION, or the version MODEL_ALIAS names) and a fresh local store,
 so each run starts clean. Nothing here touches a cloud account.
 """
 from __future__ import annotations
@@ -35,10 +35,11 @@ def main() -> int:
     args = ap.parse_args()
 
     shutil.rmtree(args.store, ignore_errors=True)
-    cfg = dataclasses.replace(config.load(), provider="local", store_uri=str(args.store))
+    cfg = dataclasses.replace(config.load(strict=False), provider="local", blob_uri=str(args.store))
     adapter = LocalAdapter(cfg)
     raw = data.load_raw(cfg.raw_path)
-    model, threshold = registry.load_serving_model(cfg)
+    model, threshold, version = registry.load_serving_model(cfg)
+    print(f"serving {cfg.model_registry_name} version {version}")
     results = simulate(adapter, cfg, data.hourly(raw), model, data.holidays(raw),
                        pd.Timestamp(args.start), args.ticks, args.freeze_at, args.unfreeze_at,
                        threshold)

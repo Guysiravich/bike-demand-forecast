@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from src import baseline, data, forecast
+from src import baseline, data, feeder, forecast
 
 
 def setup_world(adapter, raw, values, observed_at="2012-03-12T00:00", now="2012-03-12T00:00"):
@@ -62,3 +62,42 @@ def test_the_baseline_falls_back_when_last_week_is_missing(raw):
     targets = pd.DatetimeIndex([pd.Timestamp("2012-03-15T09:00")])
     yesterday = float(series[pd.Timestamp("2012-03-14T09:00")])
     assert baseline.same_hour_last_week(series, targets) == [yesterday]
+
+
+# --- input nobody planned for: the demo's "unexpected input" ------------------------------
+
+def _write_raw(adapter, key, text):
+    path = adapter.root / key
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
+def test_a_reading_that_is_not_json_degrades(adapter, cfg, raw, model):
+    history = setup_world(adapter, raw, good_values(raw))
+    _write_raw(adapter, "weather/latest.json", "temp=0.3, hum=0.5 <html>")
+    result = forecast.run_once(adapter, cfg, model, history, data.holidays(raw))
+    assert result["status"] == "degraded"
+    assert "not valid JSON" in adapter.read_json("forecasts/latest.json")["reasons"][0]
+
+
+def test_a_reading_without_values_degrades(adapter, cfg, raw, model):
+    history = setup_world(adapter, raw, good_values(raw))
+    adapter.write_json("weather/latest.json", {"observed_at": "2012-03-12T00:00", "values": [1]})
+    result = forecast.run_once(adapter, cfg, model, history, data.holidays(raw))
+    assert result["status"] == "degraded"
+
+
+def test_a_reading_with_an_unreadable_time_degrades(adapter, cfg, raw, model):
+    for stamp in ("yesterday", None, "2012-03-12T00:00+07:00"):
+        history = setup_world(adapter, raw, good_values(raw), observed_at=stamp)
+        result = forecast.run_once(adapter, cfg, model, history, data.holidays(raw))
+        assert result["status"] == "degraded", stamp
+
+
+def test_a_garbled_control_file_keeps_the_feed_running(adapter, raw):
+    world = data.hourly(raw)
+    for text in ('{"mode": "banana"}', '{"mode": 7}', "[]", "not json"):
+        _write_raw(adapter, "control/feed_mode.json", text)
+        assert feeder.read_mode(adapter) == "normal", text
+    fed = feeder.tick(adapter, world, start=pd.Timestamp("2012-03-12T00:00"))
+    assert fed["published"]

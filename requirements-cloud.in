@@ -1,0 +1,6 @@
+# Tools for the person driving the cloud, not for any image (course: installed separately).
+#   pip install -r requirements-cloud.txt
+dvc[azure]==3.67.1
+azure-identity==1.25.3
+azure-storage-blob==12.30.1
+azure-ai-ml                # Lab 2 adapter (submit_training); the lock file pins it

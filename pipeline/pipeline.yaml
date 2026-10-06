@@ -1,0 +1,48 @@
+# The training pipeline as a neutral DAG (course Lab 5, Task 1).
+#
+# This file describes WHAT runs; scripts/run_pipeline.py runs it on this machine, step by step,
+# and the same commands run in the training image as an Azure ML job (make train-remote runs
+# the train step). Every step is a command in the image, not a function in a provider SDK —
+# that is what keeps the pipeline portable.
+
+name: bike-training-pipeline
+# Weekly, Sunday 02:00 UTC. Why not drift-triggered: in this system the input that moves is
+# the weather feed, and a broken feed looks exactly like drift — retraining on it would
+# destroy the last good model (README, "Retraining trigger").
+schedule: "0 2 * * 0"
+
+steps:
+  - name: ingest
+    command: ["python", "scripts/download_data.py"]
+    outputs: [raw_data]
+
+  - name: validate
+    command: ["python", "-m", "pytest", "-q", "tests/test_data.py"]
+    depends_on: [ingest]
+    on_failure: abort
+    # Aborting here is the point. A model trained on data failing its own contract is one
+    # nobody should trust, and it would be produced silently.
+
+  - name: train
+    command: ["python", "-m", "src.train", "--metrics-out", "reports/pipeline-metrics.json"]
+    depends_on: [validate]
+    outputs: [model, metrics]
+
+  - name: evaluate
+    command: ["python", "scripts/evaluation_gate.py", "--metrics", "reports/pipeline-metrics.json",
+              "--decision-out", "reports/gate-decision.txt"]
+    depends_on: [train]
+    on_failure: continue          # a failed gate is a decision, not a crash; register reads it
+    outputs: [gate_decision]
+
+  - name: register
+    command: ["python", "scripts/register_model.py", "--run-id", "${RUN_ID}", "--alias", "staging"]
+    depends_on: [evaluate]
+    # The gate. Without this line the pipeline registers unconditionally and has no gate;
+    # tests/test_pipeline.py makes it fail on purpose to prove the branch is reachable.
+    condition: "gate_decision == 'pass'"
+
+tags:
+  course: itcs355
+  student: "${PROJECT_ID}"
+  lab: capstone

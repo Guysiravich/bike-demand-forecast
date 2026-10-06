@@ -51,7 +51,8 @@ def raw() -> pd.DataFrame:
 
 @pytest.fixture
 def cfg(tmp_path):
-    return dataclasses.replace(config.load(), provider="local", store_uri=str(tmp_path / "store"))
+    return dataclasses.replace(config.load(strict=False), provider="local",
+                               blob_uri=str(tmp_path / "store"))
 
 
 @pytest.fixture

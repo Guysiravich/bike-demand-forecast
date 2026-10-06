@@ -1,0 +1,79 @@
+# Continuous deployment (course Lab 4, Task 2) — written, not yet run: it needs the Azure
+# resources and the GitHub environment described in README, "Deploying".
+#
+# Runs only on main, only after CI is green. No stored keys: azure/login exchanges this run's
+# GitHub token for an Azure token as a user-assigned managed identity whose federated
+# credential trusts only this repository's `production` environment. GitHub's subject carries
+# the owner and repository IDs, not only their names (course Lab 4: AADSTS700213 otherwise):
+#   repo:<owner>@<owner id>/<repo>@<repo id>:environment:production
+#
+# What ships is CODE: the job image, by digest. Which MODEL the job serves is the registry
+# alias `production`, moved by a person (`make promote`), never by a commit.
+
+name: CD
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    # workflow_run fires for every completed CI run; only a green one on a push to main deploys.
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The commit CI tested, not whatever main points at by the time this starts.
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      # Identifiers, not credentials; kept in the secret store so the subscription is not
+      # printed in a public repository's logs.
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Allow the containerapp CLI extension to install itself
+        run: az config set extension.use_dynamic_install=yes_without_prompt
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install (hash-checked)
+        run: |
+          pip install --upgrade pip
+          pip install --require-hashes -r requirements-job.txt
+
+      - name: Configuration from the secret store
+        # CLOUD_ENV holds the cloud.env lines, including the tracking server's password.
+        # Written to cloud.env (gitignored) for this run only; src/config.py reads it.
+        env:
+          CLOUD_ENV: ${{ secrets.CLOUD_ENV }}
+        run: |
+          printf '%s\n' "$CLOUD_ENV" > cloud.env
+          grep -q '^MLFLOW_TRACKING_PASSWORD=.' cloud.env || { echo "CLOUD_ENV secret is incomplete"; exit 1; }
+
+      - name: Fetch the dataset
+        run: python scripts/download_data.py
+
+      - name: Build the job image from the commit CI tested
+        run: docker build -f Dockerfile.job -t bike-job:$SHA .
+
+      - name: Push by digest and update both jobs
+        run: python scripts/deploy.py --image bike-job:$SHA --alias production
+
+      - name: Smoke test — one forecast run now, and it must succeed
+        run: python scripts/smoke.py bike-forecast

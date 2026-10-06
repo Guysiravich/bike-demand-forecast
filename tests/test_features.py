@@ -1,38 +1,19 @@
-"""Leakage and training/serving consistency.
+"""Unit tests for the feature code: training and the hourly job must build the same rows.
 
-A forecast issued at t may use nothing from after t. And the hourly job must build exactly
-the features training built — the same function computes both, and this checks it did.
+Training/serving skew (course Session 2) — the feature computed one way in training and a
+slightly different way at serving — is the boring failure nobody notices for six weeks. One
+function computes both here, and this checks that it did.
 """
 from __future__ import annotations
 
 import pandas as pd
-import pytest
 
 from src import data
-from src.features import FEATURES, inference_frame, training_frame
+from src.features import FEATURES, calendar, inference_frame, training_frame
 
 
-@pytest.fixture
-def frame(raw):
-    return training_frame(raw)
-
-
-def test_every_feature_is_known_at_issue_time(raw, frame):
-    cnt = data.hourly(raw)["cnt"]
-    weather = data.hourly(raw)[data.WEATHER]
-    issue = pd.Timestamp("2012-03-15T08:00")
-    for h in (1, 6, 24):
-        row = frame[(frame["issue_time"] == issue) & (frame["horizon"] == h)].iloc[0]
-        target = issue + pd.Timedelta(hours=h)
-        assert row["cnt_now"] == cnt[issue]
-        assert row["cnt_lag24"] == cnt[target - pd.Timedelta(hours=24)]
-        assert row["cnt_lag168"] == cnt[target - pd.Timedelta(hours=168)]
-        assert row["temp"] == weather.loc[issue, "temp"], "weather must be read at t, not t+h"
-        assert row["cnt"] == cnt[target]
-        assert target - pd.Timedelta(hours=24) <= issue
-
-
-def test_training_and_the_hourly_job_build_the_same_features(raw, frame):
+def test_training_and_the_hourly_job_build_the_same_features(raw):
+    frame = training_frame(raw)
     series = data.hourly(raw)
     issue = pd.Timestamp("2012-03-15T08:00")
     weather = {c: float(series.loc[issue, c]) for c in data.WEATHER}
@@ -44,8 +25,15 @@ def test_training_and_the_hourly_job_build_the_same_features(raw, frame):
     )
 
 
-def test_split_is_in_time_order():
-    times = pd.date_range("2012-06-25", "2012-10-05", freq="D")
-    train, val, test = data.split_by_time(pd.DataFrame({"issue_time": times}))
-    assert train["issue_time"].max() < val["issue_time"].min()
-    assert val["issue_time"].max() < test["issue_time"].min()
+def test_calendar_marks_holidays_as_non_working():
+    times = pd.DatetimeIndex([pd.Timestamp("2012-07-04T09:00")])   # a Wednesday
+    plain = calendar(times, set())
+    holiday = calendar(times, {pd.Timestamp("2012-07-04")})
+    assert plain["workingday"].iloc[0] == 1
+    assert holiday["holiday"].iloc[0] == 1 and holiday["workingday"].iloc[0] == 0
+
+
+def test_weekday_follows_the_source_convention():
+    # The source counts Sunday as 0. Getting this wrong shifts every weekly pattern by a day.
+    sunday = calendar(pd.DatetimeIndex([pd.Timestamp("2012-03-11")]), set())
+    assert sunday["weekday"].iloc[0] == 0

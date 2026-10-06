@@ -1,13 +1,14 @@
-# Source of truth. Compile to requirements.txt WITH HASHES, inside the pinned base image:
-#   make lock
-# Commit both files. The lock file is what makes the build reproducible.
-# Versions match the ITCS355 course repository, so the MLflow server and registry from the
-# labs read and write these models without a version mismatch.
+# Training, tests and tooling. Compile to requirements.txt WITH HASHES, inside the pinned
+# base image (course Lab 1, Task 2):  make lock
+# Commit both files. Versions match the course repository, so the MLflow server and registry
+# from the labs read and write these models without a version mismatch.
 scikit-learn==1.8.0
 pandas==3.0.2
 numpy==2.4.4
 mlflow==3.16.0
 joblib==1.4.2
+PyYAML==6.0.3
 pytest==9.1.1
 ruff==0.16.6
-dvc[azure]==3.67.1
+# DVC and the Azure SDK are deliberately absent: the training image never talks to Azure
+# (README, "Setup"). The cloud tools are installed separately, as in the course.

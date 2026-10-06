@@ -1,11 +1,14 @@
-"""A filesystem stand-in for cloud storage and metrics, for development and CI.
+"""Filesystem stand-in, so everything runs before — and without — a cloud account.
 
-Documents live under STORE_URI (default .local-store/, gitignored). Metrics append to
-<store>/metrics.jsonl, one JSON object per line, so a test can read them back.
+Acceptable for development, CI and the local drills. Not a deployment: the submitted service
+runs on the provider adapter. Objects live under BLOB_URI, which for the local provider is a
+directory (default .local-store/, gitignored). Metrics append to <BLOB_URI>/metrics.jsonl,
+one JSON object per line, so a test can read them back.
 """
 from __future__ import annotations
 
 import json
+import shutil
 import time
 from pathlib import Path
 from typing import Any
@@ -16,22 +19,29 @@ from cloudlayer.base import CloudAdapter
 class LocalAdapter(CloudAdapter):
     @property
     def root(self) -> Path:
-        return Path(self.cfg.store_uri)
+        return Path(self.cfg.blob_uri)
 
-    def read_json(self, key: str) -> dict[str, Any] | None:
-        path = self.root / key
-        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+    def upload(self, local_path: str, key: str) -> str:
+        dest = self.root / key
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(local_path, dest)
+        return str(dest)
 
-    def write_json(self, key: str, document: dict[str, Any]) -> str:
-        path = self.root / key
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(document, indent=2, default=str), encoding="utf-8")
-        return str(path)
+    def download(self, uri: str, local_path: str) -> None:
+        src = Path(uri)
+        if not src.is_file():
+            raise FileNotFoundError(uri)
+        Path(local_path).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src, local_path)
 
-    def emit_metric(self, name: str, value: float,
-                    dimensions: dict[str, str] | None = None) -> None:
+    def push_image(self, local_tag: str) -> str:
+        raise NotImplementedError(
+            "LocalAdapter cannot push images. Set CLOUD_PROVIDER=azure in cloud.env."
+        )
+
+    def emit_metric(self, name: str, value: float, unit: str = "None") -> None:
         self.root.mkdir(parents=True, exist_ok=True)
-        record = {"ts": time.time(), "name": name, "value": value, "dimensions": dimensions or {}}
+        record = {"ts": time.time(), "name": name, "value": value, "unit": unit}
         with (self.root / "metrics.jsonl").open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(record) + "\n")
 
@@ -42,3 +52,7 @@ class LocalAdapter(CloudAdapter):
             return []
         lines = path.read_text(encoding="utf-8").splitlines()
         return [json.loads(line) for line in lines if line.strip()]
+
+    def teardown(self, tags: dict[str, str], dry_run: bool = False) -> list[str]:
+        """Nothing local carries tags; the store is deleted with `make clean`."""
+        return []

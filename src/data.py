@@ -94,3 +94,14 @@ def split_by_time(frame: pd.DataFrame, time_column: str = "issue_time") -> tuple
 def fingerprint(path: Path) -> str:
     """First 16 hex characters of the file's sha256. Logged with every run."""
     return hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+
+
+def dvc_hash(dvc_file: Path) -> str:
+    """The md5 DVC recorded for the tracked file — the data version a run consumed."""
+    if not dvc_file.exists():
+        return "unversioned"
+    for line in dvc_file.read_text(encoding="utf-8").splitlines():
+        key, _, value = line.strip().lstrip("- ").partition(":")
+        if key == "md5":
+            return value.strip()
+    return "unknown"
