@@ -25,10 +25,11 @@ objectives:
     window: per run
     measurement: "weather_age_min: issue time minus the reading's own observation time"
     on_budget_exhausted: |
-      Not a budget: every breach acts at once. The job serves "same hour last week" and marks
-      the output degraded (the planned failure). The alert pages the person on call — who, in
-      the drill, is not the person who caused it — to fix the feed, never to retrain the model
-      (README, "Retrain, roll back, or no action").
+      Not a budget: every breach acts at once. The job keeps the model on the last good
+      reading and marks the output degraded; after 48 hours (STALE_MODEL_MAX_AGE_MIN) it
+      serves "same hour last week" (the planned failure; reports/failure-drill.md). The alert
+      pages the person on call — who, in the drill, is not the person who caused it — to fix
+      the feed, never to retrain the model.
 
   - name: job_duration
     target_max_seconds: 300         # JOB_MAX_DURATION_S; also the platform's replica timeout

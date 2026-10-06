@@ -328,7 +328,7 @@ class AzureAdapter(CloudAdapter):
             "AZURE_CLIENT_ID": _query(["az", "identity", "show", "--ids", identity,
                                        "--query", "clientId", "-o", "tsv"]),
             "WEATHER_MAX_AGE_MIN": str(self.cfg.weather_max_age_min),
-            "FEED_REPEAT_ALERT": str(self.cfg.feed_repeat_alert),
+            "STALE_MODEL_MAX_AGE_MIN": str(self.cfg.stale_model_max_age_min),
             "JOB_MAX_DURATION_S": str(self.cfg.job_max_duration_s),
         }
         if model_ref:

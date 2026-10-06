@@ -1,4 +1,4 @@
-"""How often does REAL weather repeat for N hours in a row? The price of signal 1.
+"""How often does REAL weather repeat for N hours in a row? Why the repeat count only charts.
 
     python scripts/feed_false_alarms.py
 
@@ -38,7 +38,9 @@ def main() -> int:
     for n in range(2, 7):
         count = sum(1 for r in runs if r >= n)
         lines.append(f"| {n} or more | {count} | {count / 2:.1f} |")
-    lines += ["", f"Current threshold: {cfg.feed_repeat_alert} (FEED_REPEAT_ALERT)."]
+    lines += ["", "Decision: the repeat count is charted, not paged. At 3 repeats it would page "
+              "about 50 times a year on a healthy feed, and the age rule caught the frozen feed "
+              "at the same tick with no false alarms."]
     text = "\n".join(lines) + "\n"
     cfg.reports_dir.mkdir(parents=True, exist_ok=True)
     (cfg.reports_dir / "feed-false-alarms.md").write_text(text, encoding="utf-8")

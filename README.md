@@ -177,7 +177,8 @@ feeder job (each tick)           forecast job (each tick, src/forecast.py)      
 advance clock.json      ──►      read clock + latest weather reading                  forecasts/latest.json
 publish weather/latest  ──►      valid? how old? same values as last run?             forecasts/<hour>.json
 read control/feed_mode           ok  → model from the registry (alias production)     alerts/<hour>.json
-                                 not → same hour last week, status = degraded         state/last_run.json
+                                 stale → same model, last reading, degraded (≤48 h)  state/last_run.json
+                                 bad or >48 h → same hour last week, degraded
                                  score last run's 1-hour forecast vs. actual          metrics → Azure Monitor
 ```
 
@@ -206,8 +207,8 @@ or `tests/`.
 | Unit | `test_features.py`, `test_forecast.py`, `test_registry.py`, `test_pipeline.py` | our code is wrong: training/serving skew, the job mishandling bad input, a rollback that does not move the alias, a gate that cannot fail |
 | Data contract | `test_data.py` | the input is wrong (below) |
 | Model behaviour | `test_model_behaviour.py` | the model is wrong: negative forecasts, the morning peak lost, rain raising demand, constant output, scoring too slow for the 5-minute budget |
-| The planned failure | `test_frozen_feed_alert.py` | a frozen feed stops raising the alert within three ticks |
-| Integration | `scripts/integration_test.sh` | the images do not work together: it trains and registers in the training image, runs feeder and forecast in the **job image**, then freezes the feed and requires `degraded` and an alert |
+| The planned failure | `test_frozen_feed_alert.py` | a frozen feed stops paging on the first stale tick, repeats alone start paging, or the response costs more than doing nothing (on the real data) |
+| Integration | `scripts/integration_test.sh` | the images do not work together: it trains and registers in the training image, runs feeder and forecast in the **job image**, then freezes the feed and requires `degraded`, the model on the last reading, and an alert |
 
 **The incident each data contract test would have caught:**
 
@@ -252,26 +253,48 @@ unreadable time or impossible numbers is refused with its reason, and the run de
 ## The planned failure: a frozen weather feed (R4)
 
 The feed keeps delivering the same reading. The values are real, only old. Nothing raises and a
-health check passes the whole time. Three signals catch it:
+health check passes the whole time.
 
-| Signal | Metric | Fires when |
+| Signal | Metric | What it does |
 |---|---|---|
-| The reading is old | `weather_age_min` | older than 60 minutes (`WEATHER_MAX_AGE_MIN`) |
-| The values stop changing | `weather_repeat_count` | 3 runs in a row (`FEED_REPEAT_ALERT`) |
-| The forecast gets worse | `rolling_mae_1h` | above 1.5 × the version's validation error at 1 hour |
+| The reading is old | `weather_age_min` | **pages** above 60 minutes (`WEATHER_MAX_AGE_MIN`); output marked `degraded` |
+| The forecast gets worse | `rolling_mae_1h` | **pages** above 1.5 × the version's validation error at 1 hour |
+| The values stop changing | `weather_repeat_count` | **charted only** — real weather repeats by chance about 50 times a year at 3 hours |
 
 **Response: not a retrain, and not a rollback.** This is the left branch of the Lab 4 decision
 tree — the upstream pipeline broke, the model did not. Retraining on a frozen feed would teach
-the model that weather never changes and destroy the last good version. The job serves "same
-hour last week", which needs no weather, marks every row `degraded` with the reason, and the
-alert pages someone to fix the feed. A bad *model* is the other branch: `make rollback`.
+the model that weather never changes and destroy the last good version. For up to 48 hours
+(`STALE_MODEL_MAX_AGE_MIN`) the job keeps forecasting with the model on the last good reading,
+marks every row `degraded` with the reading's age, and the alert pages someone to fix the feed.
+After that, or if the reading is unusable, it serves "same hour last week". A bad *model* is
+the other branch: `make rollback`.
 
-**What the drill revealed.** Detection works: both feed signals fire on the first stale tick.
-The *response* does not: over the first 24 hours, the model on a frozen reading is about as
-accurate as on a live one, while "same hour last week" is about twice as wrong (mean 1-hour
-error 97–156 against 39–70). Within a day the rental lags carry the forecast, not the weather.
-The fallback needs to be no worse than doing nothing; that is the next change and its test.
-The full write-up, in the course's post-mortem template, is `reports/failure-drill.md`.
+### What the drill revealed, and what changed (the brief's dotted edge)
+
+The first design switched to "same hour last week" at the first stale tick. The drill measured
+it against doing nothing, and it was the wrong default:
+
+| Over 24 h after a freeze, 7 days of the test period | Mean 1-hour error |
+|---|---|
+| Doing nothing — the model on the frozen reading | 54.6 |
+| First design — "same hour last week" at once | 72.1 |
+| **Now — the model on the last reading, degraded, for 48 h** | **54.6** |
+
+Within a day, weather changes slowly and the rental lags carry the forecast. `make stale-study`
+compares the two by age of the reading over 27 freezes of 48 hours each
+(`reports/stale-reading-study.md`): the model on the stale reading was better at every age
+measured except the evening peak 10–12 hours in, where the baseline was 4% better. The
+fallback waits until 48 hours — as far as the evidence goes.
+
+Two things were fed back into the tests. `test_the_response_is_no_worse_than_doing_nothing`
+re-runs that comparison on the real data in CI: if a change makes the response cost more than
+the failure, the build fails. `test_repeated_values_alone_do_not_page` holds the second
+finding — the repeat rule was noise (`reports/feed-false-alarms.md`) and the age rule fired at
+the same tick. The post-mortem, in the course template, is `reports/failure-drill.md`.
+
+**What the age rule gives up:** a feed that freezes the values but stamps each delivery with a
+fresh observation time would not page on age. It still shows on the repeat chart, and the
+accuracy alert is the backstop.
 
 ---
 
@@ -341,6 +364,7 @@ make train && make register && make promote VERSION=1 ALIAS=production
 make simulate                       # twelve simulated hours, healthy feed
 make simulate-freeze                # the planned failure
 make false-alarms                   # how often real weather repeats by chance
+make stale-study                    # model on a stale reading vs. the baseline, by age
 pip install -r requirements-cloud.txt   # only to drive the cloud: DVC, the Azure SDK
 ```
 

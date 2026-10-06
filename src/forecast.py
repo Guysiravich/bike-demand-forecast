@@ -5,9 +5,9 @@
 One run:
   1. read the clock and the latest weather reading
   2. measure the reading: valid? how old? identical to the last run's?
-  3. if the weather can be trusted, score the model; if not, use the same hour last week
-     and mark every row `degraded` — rolling the model back would not help, the model is
-     not what is wrong
+  3. fresh reading: the model. Stale but recent: the model on the last reading, marked
+     `degraded`. Invalid, or stale for longer: same hour last week, marked `degraded`.
+     Never a rollback — the model is not what is wrong (monitor.response)
   4. score the previous run's 1-hour-ahead forecast against what was actually rented
   5. write forecasts/latest.json, emit the signals as metrics, evaluate the alert rules
 """
@@ -29,10 +29,9 @@ ROLLING_WINDOW = 6          # runs in the rolling 1-hour-ahead error
 
 
 def _values_fingerprint(weather: dict | None) -> str | None:
-    # Values only, not the timestamp: the proposal's first signal is "the weather values stop
-    # changing", which also catches a feed that freezes the values but keeps stamping them
-    # with a fresh time. The price is that real weather can repeat by chance; how often it
-    # does over two years is measured in reports/feed-false-alarms.md.
+    # Values only, not the timestamp, so the chart also shows a feed that freezes the values
+    # but keeps stamping them with a fresh time. Charted, not paged: real weather repeats by
+    # chance too often (reports/feed-false-alarms.md).
     return json.dumps(weather.get("values"), sort_keys=True) if weather else None
 
 
@@ -110,20 +109,22 @@ def run_once(adapter: CloudAdapter, cfg: Config, model: Any, history: pd.Series,
     # --- 3. forecast, or fall back ----------------------------------------------------------
     horizons = range(1, cfg.forecast_horizon_h + 1)
     target_times = pd.DatetimeIndex([now + pd.Timedelta(hours=h) for h in horizons])
-    if signals.degraded:
+    serve = monitor.response(signals, cfg)
+    if serve == "baseline":
         values = baseline.same_hour_last_week(history[history.index <= now], target_times)
         source = "baseline: same hour last week"
     else:
         rows = inference_frame(history, weather["values"], now, holiday_dates, horizons)
         values = [max(0.0, float(v)) for v in model.predict(rows[FEATURES])]
-        source = "model"
+        source = ("model" if serve == "model"
+                  else f"model on the last reading, {age_min:.0f} min old")
 
     output = {
         "issued_at": now.isoformat(),
         "status": "degraded" if signals.degraded else "ok",
         "reasons": reasons,
         "source": source,
-        "model_version": model_version if source == "model" else None,
+        "model_version": None if serve == "baseline" else model_version,
         "weather_observed_at": weather["observed_at"] if weather else None,
         "rows": [{"target_time": t.isoformat(), "forecast": round(v, 1)}
                  for t, v in zip(target_times, values, strict=True)],

@@ -17,7 +17,7 @@ UV := uv==0.12.23
 
 .PHONY: help setup lock cloud-check data validate test lint portability-audit scan-secrets check \
         train image image-push reproduce verify runs seeds compare register promote rollback models reload-check \
-        train-remote job-image deploy run-now freeze unfreeze simulate simulate-freeze false-alarms \
+        train-remote job-image deploy run-now freeze unfreeze simulate simulate-freeze false-alarms stale-study \
         pipeline gate cost teardown teardown-verify clean
 
 help:
@@ -140,6 +140,9 @@ simulate-freeze: ## The planned failure on this machine: the feed freezes at hou
 
 false-alarms: ## How often real weather repeats by chance (the cost of the repeat rule)
 	$(PYTHON) scripts/feed_false_alarms.py
+
+stale-study: ## How long the model may forecast from a stale reading: reports/stale-reading-study.md
+	$(PYTHON) scripts/stale_reading_study.py
 
 # --- Lab 5: pipeline, cost, teardown --------------------------------------------------------
 pipeline: ## Run pipeline/pipeline.yaml: validate, train, gate, register, promote to staging

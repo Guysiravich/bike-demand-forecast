@@ -46,7 +46,7 @@ assert len(doc["rows"]) == 24 and all(r["forecast"] >= 0 for r in doc["rows"])
 print("healthy: status ok, model version 1, 24 non-negative rows")
 PY
 
-echo "== freeze the feed: within three ticks the job must degrade"
+echo "== freeze the feed: the job must degrade, keep the model, and write an alert"
 docker run --rm "${COMMON[@]}" "bike-job:$TAG" src.feeder --mode frozen
 for _ in 1 2 3; do
   docker run --rm "${COMMON[@]}" "bike-job:$TAG" src.feeder
@@ -55,8 +55,10 @@ done
 python3 - "$WORK/store/forecasts/latest.json" "$WORK/store/alerts" <<'PY'
 import json, pathlib, sys
 doc = json.load(open(sys.argv[1]))
-assert doc["status"] == "degraded" and doc["source"].startswith("baseline"), doc
+assert doc["status"] == "degraded", doc
+assert doc["source"].startswith("model on the last reading"), doc["source"]
 assert any(pathlib.Path(sys.argv[2]).glob("*.json")), "no alert was written"
-print("frozen: status degraded, baseline served, alert written —", "; ".join(doc["reasons"]))
+print("frozen: status degraded, model on the last reading, alert written —",
+      "; ".join(doc["reasons"]))
 PY
 echo "integration test passed"

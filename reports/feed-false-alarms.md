@@ -10,4 +10,4 @@ Hours in the data: 17,544 (2011-01-01 to 2012-12-31, gaps included).
 | 5 or more | 3 | 1.5 |
 | 6 or more | 1 | 0.5 |
 
-Current threshold: 3 (FEED_REPEAT_ALERT).
+Decision: the repeat count is charted, not paged. At 3 repeats it would page about 50 times a year on a healthy feed, and the age rule caught the frozen feed at the same tick with no false alarms.

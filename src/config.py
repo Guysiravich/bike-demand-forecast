@@ -63,7 +63,11 @@ class Config:
     model_alias: str = "production"
     # Service levels from the proposal. Changing these changes what the alerts mean.
     weather_max_age_min: int = 60
-    feed_repeat_alert: int = 3
+    # How long the model may keep forecasting from the last good reading before the job falls
+    # back to "same hour last week". 48 h is as far as the drill measured, and the model on a
+    # stale reading beat the baseline at every age up to it but the evening peak
+    # (reports/stale-reading-study.md).
+    stale_model_max_age_min: int = 2880
     job_max_duration_s: int = 300
     forecast_horizon_h: int = 24
     data_dir: Path = field(default=REPO_ROOT / "data")
@@ -103,6 +107,6 @@ def load(strict: bool = True) -> Config:
         model_version=get("MODEL_VERSION") or "",
         model_alias=get("MODEL_ALIAS") or "production",
         weather_max_age_min=int(get("WEATHER_MAX_AGE_MIN") or 60),
-        feed_repeat_alert=int(get("FEED_REPEAT_ALERT") or 3),
+        stale_model_max_age_min=int(get("STALE_MODEL_MAX_AGE_MIN") or 2880),
         job_max_duration_s=int(get("JOB_MAX_DURATION_S") or 300),
     )

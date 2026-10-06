@@ -1,7 +1,7 @@
 """Run the feeder and the hourly job together against the simulated clock.
 
 This is the demo, and it is also what the CI test drives: freeze the feed at one tick, and
-the alert must fire within `feed_repeat_alert` ticks, with every forecast after that marked
+the age alert must fire on the first stale tick, with every forecast after that marked
 degraded. If the detection ever stops working, the test — and the build — fail.
 """
 from __future__ import annotations

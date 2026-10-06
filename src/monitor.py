@@ -1,11 +1,20 @@
 """The signals the hourly job reports, and the alert rules that read them.
 
 The planned failure is a weather feed that freezes: it keeps delivering the same reading,
-the values are plausible, nothing raises. A health check cannot see it. Three signals can:
+the values are plausible, nothing raises. A health check cannot see it. Two signals page:
 
-  1. weather_repeat_count   consecutive runs that received an identical reading
-  2. weather_age_min        how old the reading's own timestamp is at issue time
-  3. rolling_mae_1h         the 1-hour-ahead forecast against rentals actually observed
+  weather_age_min        how old the reading's own timestamp is at issue time
+  rolling_mae_1h         the 1-hour-ahead forecast against rentals actually observed
+
+and one is charted, not paged:
+
+  weather_repeat_count   consecutive runs that received identical values. Real weather repeats
+                         3 hours running about 50 times a year (reports/feed-false-alarms.md);
+                         as a page it was noise, and the age signal fired at the same tick.
+
+What the job serves with a stale reading is `response()`, below. The drill measured it
+(reports/failure-drill.md): for the first hours the model on the last reading beats "same hour
+last week" by a wide margin, so the baseline is the fallback only once the reading is old.
 
 The same rules run in two places: here, where CI tests them (tests/test_frozen_feed_alert.py
 fails the build if a frozen feed stops being detected), and as alert rules on the cloud
@@ -43,10 +52,24 @@ def degraded_reasons(signals: Signals, cfg: Config) -> list[str]:
     if signals.weather_age_min > cfg.weather_max_age_min:
         reasons.append(f"weather is {signals.weather_age_min:.0f} min old "
                        f"(limit {cfg.weather_max_age_min})")
-    if signals.weather_repeat_count >= cfg.feed_repeat_alert:
-        reasons.append(f"weather repeated {signals.weather_repeat_count} runs in a row "
-                       f"(limit {cfg.feed_repeat_alert})")
     return reasons
+
+
+def response(signals: Signals, cfg: Config) -> str:
+    """What the job serves this hour:
+
+      "model"        the reading is valid and fresh
+      "stale-model"  valid, older than WEATHER_MAX_AGE_MIN but not STALE_MODEL_MAX_AGE_MIN:
+                     the model on the last reading, marked degraded
+      "baseline"     no valid reading, or one older than that: same hour last week, degraded
+    """
+    if not signals.weather_valid:
+        return "baseline"
+    if signals.weather_age_min <= cfg.weather_max_age_min:
+        return "model"
+    if signals.weather_age_min <= cfg.stale_model_max_age_min:
+        return "stale-model"
+    return "baseline"
 
 
 def alerts(signals: Signals, cfg: Config, mae_threshold: float | None = None) -> list[str]:

@@ -43,8 +43,11 @@ at 1 hour ahead, and the accuracy alert fires when the live 1-hour error passes 
 
 ## When not to trust it
 
-When `forecasts/latest.json` says `"status": "degraded"`. The job then serves the baseline and
-lists the reasons — a stale, repeated or invalid weather reading. Also at 24 hours ahead before
+When `forecasts/latest.json` says `"status": "degraded"`, with its reasons. For up to 48 hours
+of a stale weather feed it is still this model, on the last good reading — close to its
+live-feed accuracy over the first day in the drill (`reports/failure-drill.md`) and better than
+the baseline at nearly every age up to 48 hours (`reports/stale-reading-study.md`); after that, or
+with an unusable reading, the job serves "same hour last week". Also at 24 hours ahead before
 a weather change, where it is no better than the baseline (table above).
 
 ## Lineage
@@ -56,6 +59,5 @@ Every registered version carries: `git_commit`, `data_version`, `mlflow_run_id`,
 ## What another week would buy
 
 Per-station forecasts, if station-level data can be licensed; a real weather forecast in place
-of the reading at issue time, which would fix the 24-hour weakness. The repeat rule also needs
-a decision: at 3 repeats, real weather would page about 50 times a year on a healthy feed
-(`reports/feed-false-alarms.md`).
+of the reading at issue time, which would fix the 24-hour weakness; and the stale-reading study
+extended past 48 hours, with freezes at every hour of the day rather than 06:00 only.
