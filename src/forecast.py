@@ -82,6 +82,11 @@ def run_once(adapter: CloudAdapter, cfg: Config, model: Any, history: pd.Series,
     repeat = _repeat_count(feed_state, weather)
     age_min = ((now - pd.Timestamp(weather["observed_at"])).total_seconds() / 60
                if weather else float("inf"))
+    if age_min < 0:
+        # A reading from the future would pass as perfectly fresh. It is a clock or feed
+        # fault, never weather we can use.
+        problems = [*problems, f"weather reading is from the future: observed "
+                               f"{weather['observed_at']}, now {now.isoformat()}"]
     adapter.write_json("state/feed.json", {"fingerprint": _values_fingerprint(weather),
                                            "repeat_count": repeat})
 

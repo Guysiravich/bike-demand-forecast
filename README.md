@@ -192,6 +192,7 @@ make job-image                   # build the job image
 make deploy ALIAS=production     # push by digest, create or update both jobs
 make run-now JOB=bike-forecast   # one execution now — the demo's "next tick"
 make freeze / make unfreeze      # the planned failure, on demand
+make inject TEXT='<anything>'    # unexpected input as the weather reading (docs/demo.md)
 ```
 
 All storage, metrics and job calls go through `cloudlayer/` — `LocalAdapter` here, `AzureAdapter`
@@ -328,27 +329,54 @@ filtered by tag `lab=capstone`, once the jobs have run for a week.
 
 ---
 
-## Deploying (not yet run)
+## Deploying (scripts written, not yet run)
 
-Prerequisites, in the order the course's `getting-started-azure.md` uses: the labs' resource
-group, storage account, registry and tracking server already exist. New for the project, all
-tagged `course=itcs355 student=<id> lab=capstone`:
+The labs' resource group, storage account, registry, tracking server and Azure ML workspace
+already exist and are reused. Everything the project adds is created by script and tagged
+`course=itcs355 student=<id> lab=capstone`:
 
-1. a user-assigned managed identity for the jobs, with `AcrPull` on the registry, `Storage Blob
-   Data Contributor` on the project's container only, and `Monitoring Metrics Publisher` on the
-   forecast job (least privilege; Lab 5 Task 2);
-2. `cloud.env` filled from `cloud.env.example`; `make cloud-check` passes all slots;
-3. `make deploy`; then the alert rules on the job's metrics, emailing both of us;
-4. for CD: a federated credential on a second identity for this repository's `production`
-   environment, and the secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`,
-   `CLOUD_ENV`.
+```bash
+GITHUB_REPO=<owner>/<repo> bash infra/provision.sh   # identities, roles, OIDC trust, log workspace
+make cloud-check                                    # fill cloud.env from the script's output first
+make deploy ALIAS=production                        # push the job image, create both jobs
+ALERT_EMAILS="<both of us>" bash infra/alerts.sh    # alert rules and the dashboard, as code
+make run-now JOB=bike-forecast                      # first run, now
+```
+
+**Identities and why each permission exists** (least privilege, course Lab 5 Task 2 — every
+role scoped to the one resource it needs):
+
+| Identity | Role | Scope | Why |
+|---|---|---|---|
+| `bike-job-id` (both jobs) | AcrPull | registry | pull the job image by digest; no registry password |
+| | Storage Blob Data Contributor | container `bike` | read clock, weather and control; write forecasts and state |
+| | Monitoring Metrics Publisher | forecast job | `emit_metric` |
+| `bike-gha-id` (CD, OIDC) | AcrPush | registry | push the job image |
+| | Storage Blob Data Contributor | container `bike` | upload `hour.csv`; the smoke test reads `state/last_run.json` |
+| | Contributor | the two jobs | update their image and settings |
+| | Managed Identity Operator | `bike-job-id` | attach the job identity to a job it updates |
+| | Reader | resource group | look up the environment, jobs and identity before updating |
+| labs' cluster identity (training) | AcrPull, Storage Blob Data Contributor | registry, labs' container | pull the training image, read data (course Lab 2) |
+
+The assessed part of Lab 5 Task 2 — remove one permission and record what breaks — is planned
+for first deployment: remove `Monitoring Metrics Publisher` from `bike-job-id`. Prediction, to
+check: `emit_metric` gets HTTP 403, the run fails — and the failed-run alert stays silent,
+because it reads `job_success`, which the job can no longer post. If that holds, the fix is a
+second alert on the platform's own count of failed job executions, which needs no permission
+from the job.
+
+**Alerts** (`infra/alerts.sh`) are the job's own rules as Azure Monitor metric alerts on the
+forecast job, emailing both of us: weather older than 60 minutes, rolling 1-hour error above
+the production version's threshold, a failed run, a run over 300 s. **The dashboard** is
+`monitoring/workbook.json`, deployed as an Azure Monitor workbook: weather age, degraded runs,
+the repeat count (charted, not paged), the rolling error, run duration and success.
 
 **Teardown** deletes by tag, never by resource group, because the group also holds the labs:
 
 ```bash
-make teardown LAB=capstone DRY_RUN=1   # list
-make teardown LAB=capstone             # delete
-make teardown-verify                   # run again 24 hours later; then check the portal
+make teardown LAB=capstone DRY_RUN=1   # list what carries the tag
+bash infra/teardown.sh                 # jobs, then everything tagged, then the untagged container
+make teardown-verify                   # now and again 24 hours later; then screenshot the portal
 ```
 
 ---
@@ -377,7 +405,8 @@ cloudlayer/     Layer 3: base (the course's CloudAdapter), local, azure, factory
 scripts/        reproduce/verify, registry, deploy and smoke, pipeline and gate, cost, teardown,
                 portability audit, secret scan, integration test
 tests/          unit, data contract, model behaviour, the frozen-feed alert, the pipeline gate
-pipeline/       the neutral DAG          monitoring/   SLOs          docs/   post-mortem template
+pipeline/       the neutral DAG     monitoring/  SLOs, workbook     docs/  post-mortem template, demo
+infra/          provision, alerts and dashboard, teardown — written, not yet run
 reports/        metrics.json (make reproduce), runs.md, failure-drill.md, cost.md
 ```
 

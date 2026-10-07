@@ -29,7 +29,9 @@ ROWS_PER_RUN = 24                    # one forecast per hour ahead
 # Fixed monthly costs that exist whether or not a forecast is made (course Lab 2 README).
 FIXED_THB_MONTH = {
     "container registry, Basic (shared with the labs)": 165.0,
-    "tracking-server VM, B2ats_v2, ~4 h a day": 0.44 * 4 * 30,
+    # 24 h, not the labs' few hours a day: the job loads the model from the registry every run,
+    # so the tracking server must be up whenever the jobs are scheduled.
+    "tracking-server VM, B2ats_v2, 24 h a day": 0.44 * 24 * 30,
     "tracking-server static IP and disk": 175.0,
     "blob storage, <1 GB": 1.0,
 }
@@ -109,6 +111,12 @@ course's utilisation assumption:
 
 What it gave up: Azure ML's job history and lineage UI for inference runs. The forecasts and
 the run log are in storage and Log Analytics instead.
+
+## The next optimisation, not yet applied
+The tracking-server VM is now the largest line, and only because the job reads the model from
+it every hour. Copying the promoted version's artifact to blob storage at promotion time, and
+loading it from there by version, would let the VM run only while training — and remove the
+job's dependency on it (a single VM, a single point of failure for every run).
 """
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(content, encoding="utf-8")

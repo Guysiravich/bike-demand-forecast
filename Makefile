@@ -4,7 +4,8 @@
 # On Windows, run everything from WSL2 — this Makefile assumes bash.
 
 SHELL := /bin/bash
-PYTHON ?= python
+# python3 where `python` does not exist (a grader's plain Linux host has only python3).
+PYTHON ?= $(shell command -v python >/dev/null 2>&1 && echo python || echo python3)
 IMAGE ?= bike-train
 JOB_IMAGE ?= bike-job
 TAG   ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
@@ -17,7 +18,7 @@ UV := uv==0.12.23
 
 .PHONY: help setup lock cloud-check data validate test lint portability-audit scan-secrets check \
         train image image-push reproduce verify runs seeds compare register promote rollback models reload-check \
-        train-remote job-image deploy run-now freeze unfreeze simulate simulate-freeze false-alarms stale-study \
+        train-remote job-image deploy run-now freeze unfreeze inject simulate simulate-freeze false-alarms stale-study \
         pipeline gate cost teardown teardown-verify clean
 
 help:
@@ -131,6 +132,9 @@ freeze: ## The planned failure: freeze the weather feed (wherever BLOB_URI point
 
 unfreeze: ## Back to a live feed
 	$(PYTHON) -m src.feeder --mode normal
+
+inject: ## Unexpected input: make inject TEXT='<anything>' (or FILE=<path>) as the weather reading
+	$(PYTHON) scripts/inject_reading.py $(if $(FILE),--file $(FILE),--text '$(TEXT)')
 
 simulate: ## Twelve simulated hours, healthy feed, on this machine
 	$(PYTHON) scripts/simulate.py --ticks 12

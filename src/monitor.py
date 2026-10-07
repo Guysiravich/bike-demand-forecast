@@ -49,7 +49,8 @@ def degraded_reasons(signals: Signals, cfg: Config) -> list[str]:
     if not signals.weather_valid:
         detail = "; ".join(signals.weather_problems) or "unknown"
         reasons.append(f"weather reading failed validation: {detail}")
-    if signals.weather_age_min > cfg.weather_max_age_min:
+    # An unusable reading has no age (inf); its own reason above already says why.
+    if cfg.weather_max_age_min < signals.weather_age_min < float("inf"):
         reasons.append(f"weather is {signals.weather_age_min:.0f} min old "
                        f"(limit {cfg.weather_max_age_min})")
     return reasons

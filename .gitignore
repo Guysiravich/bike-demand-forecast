@@ -20,3 +20,10 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .local-*.sh
+
+# Outputs of make targets, regenerated on every run (make reproduce writes metrics.json as the
+# container user; a committed copy owned by whoever cloned would block it).
+reports/metrics.json
+reports/pipeline-metrics.json
+reports/gate-decision.txt
+reports/candidate.json

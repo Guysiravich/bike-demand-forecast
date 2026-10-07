@@ -101,3 +101,11 @@ def test_a_garbled_control_file_keeps_the_feed_running(adapter, raw):
         assert feeder.read_mode(adapter) == "normal", text
     fed = feeder.tick(adapter, world, start=pd.Timestamp("2012-03-12T00:00"))
     assert fed["published"]
+
+
+def test_a_reading_from_the_future_degrades(adapter, cfg, raw, model):
+    # Age would be negative and pass as fresh; a clock or feed fault is never usable weather.
+    history = setup_world(adapter, raw, good_values(raw), observed_at="2013-01-01T00:00")
+    result = forecast.run_once(adapter, cfg, model, history, data.holidays(raw))
+    assert result["status"] == "degraded" and result["source"].startswith("baseline")
+    assert "future" in adapter.read_json("forecasts/latest.json")["reasons"][0]

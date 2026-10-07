@@ -22,7 +22,7 @@ while debugging, the registry's daily rate, and runs at the demo's 5-minute tick
 | Training (Azure ML, DS2_v2, ~10 node-minutes a run) | 4.74 | weekly retraining, 4 runs |
 | Serving (the two scheduled jobs) | 0.00 | marginal 10.77 at list price |
 | container registry, Basic (shared with the labs) | 165.00 | fixed |
-| tracking-server VM, B2ats_v2, ~4 h a day | 52.80 | fixed |
+| tracking-server VM, B2ats_v2, 24 h a day | 316.80 | fixed |
 | tracking-server static IP and disk | 175.00 | fixed |
 | blob storage, <1 GB | 1.00 | fixed |
 
@@ -34,9 +34,9 @@ course's utilisation assumption:
 
 | Volume | Forecasts a month | THB per 1,000, fixed costs included |
 |---|---|---|
-| this service: 24 runs a day | 17,280 | 23.41 |
-| x10: per-station, 10 areas | 172,800 | 2.90 |
-| x100 | 1,728,000 | 0.85 |
+| this service: 24 runs a day | 17,280 | 38.69 |
+| x10: per-station, 10 areas | 172,800 | 4.43 |
+| x100 | 1,728,000 | 1.00 |
 
 ## 6. One optimisation applied
 | | Before | After |
@@ -47,3 +47,9 @@ course's utilisation assumption:
 
 What it gave up: Azure ML's job history and lineage UI for inference runs. The forecasts and
 the run log are in storage and Log Analytics instead.
+
+## The next optimisation, not yet applied
+The tracking-server VM is now the largest line, and only because the job reads the model from
+it every hour. Copying the promoted version's artifact to blob storage at promotion time, and
+loading it from there by version, would let the VM run only while training — and remove the
+job's dependency on it (a single VM, a single point of failure for every run).
