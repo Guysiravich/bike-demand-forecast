@@ -72,8 +72,17 @@ jobs:
       - name: Build the job image from the commit CI tested
         run: docker build -f Dockerfile.job -t bike-job:$SHA .
 
+      # Each step's last lines also go out as an annotation: a public repository's logs need a
+      # sign-in, its annotations do not, so the cause of a failed deploy is readable by anyone
+      # on the team. Errors from the adapter already mask secret values (cloudlayer/azure.py).
       - name: Push by digest and update both jobs
-        run: python scripts/deploy.py --image bike-job:$SHA --alias production
+        run: |
+          set -o pipefail
+          python scripts/deploy.py --image bike-job:$SHA --alias production 2>&1 | tee deploy.log \
+            || { echo "::error title=deploy::$(tail -c 1800 deploy.log | tr '\n' ' ')"; exit 1; }
 
       - name: Smoke test — one forecast run now, and it must succeed
-        run: python scripts/smoke.py bike-forecast
+        run: |
+          set -o pipefail
+          python scripts/smoke.py bike-forecast 2>&1 | tee smoke.log \
+            || { echo "::error title=smoke::$(tail -c 1800 smoke.log | tr '\n' ' ')"; exit 1; }
