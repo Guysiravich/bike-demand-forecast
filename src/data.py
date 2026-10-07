@@ -28,7 +28,7 @@ RANGES: dict[str, tuple[float, float]] = {
     "holiday": (0, 1),
     "weekday": (0, 6),
     "workingday": (0, 1),
-    "weathersit": (1, 4),
+    "weathersit": (1, 5),   # a provider added code 5; accept it
     "temp": (0.0, 1.0),
     "atemp": (0.0, 1.0),
     "hum": (0.0, 1.0),
