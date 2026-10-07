@@ -49,6 +49,12 @@ moves between environments, not how much a different seed moves it (that is in
 | image | `make reproduce`, Python 3.11, the training image | 55.761098489579325 |
 | dev container | Python 3.11, `pip install --require-hashes -r requirements.txt` | 55.761098489579325 |
 
+Tested from a **fresh clone** (`git clone` into an empty directory, no data, no `cloud.env`, no
+Python packages on the host, `python3` only): `make reproduce` then `make verify` → PASS, delta
+0.0001. That test found two bugs a grader would have hit first — a committed
+`reports/metrics.json` the container user could not overwrite, and `make verify` calling
+`python` — both fixed.
+
 Measured spread: **0** to the last digit. ± 0.01 leaves room for floating-point differences on
 another CPU; it is far smaller than any hyperparameter change below.
 
