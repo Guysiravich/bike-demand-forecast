@@ -25,8 +25,9 @@
 #   bike-gha-id   Managed Identity Operator         bike-job-id      CD attaches the job identity to a job it updates
 #   bike-gha-id   Reader                            resource group   CD looks up the environment, jobs and identity before updating
 #
-# The training identity is the labs' compute-cluster identity (AcrPull, Storage Blob Data
-# Contributor on the labs' container): training reads data and writes to MLflow, nothing else.
+# The training identity is the labs' compute-cluster identity, which already has AcrPull on the
+# registry. It gets Storage Blob Data Contributor on container `bike` here: the job mounts the
+# data from it and writes its outputs back (without it: HTTP 403 on the mount, as in Lab 2).
 set -euo pipefail
 
 RG="${RG:-itcs355-6688067}"
@@ -67,6 +68,8 @@ grant "$GHA_PRINCIPAL" AcrPush "$ACR_ID"
 grant "$GHA_PRINCIPAL" "Storage Blob Data Contributor" "$CONTAINER_SCOPE"
 grant "$GHA_PRINCIPAL" "Managed Identity Operator" "$JOB_ID_RESOURCE"
 grant "$GHA_PRINCIPAL" Reader "$(az group show -n "$RG" --query id -o tsv)"
+CLUSTER_PRINCIPAL="$(az ml compute show -g "$RG" -w "${WORKSPACE:-itcs355-6688067-ml}"   -n "${CLUSTER:-ded-ds2}" --query identity.principal_id -o tsv)"
+grant "$CLUSTER_PRINCIPAL" "Storage Blob Data Contributor" "$CONTAINER_SCOPE"
 
 echo "== GitHub OIDC: trust only this repository's production environment =="
 # GitHub's subject carries the owner and repository IDs, not only their names (course Lab 4:
