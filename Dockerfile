@@ -27,6 +27,10 @@ COPY --chown=runner:runner src/ ./src/
 COPY --chown=runner:runner cloudlayer/ ./cloudlayer/
 COPY --chown=runner:runner scripts/ ./scripts/
 COPY --chown=runner:runner pipeline/ ./pipeline/
+# The data contract tests travel with the image: the scheduled pipeline's validate step runs
+# them before it trains (pipeline/pipeline.yaml), and aborts if the data breaks its contract.
+COPY --chown=runner:runner tests/ ./tests/
+COPY --chown=runner:runner pyproject.toml ./
 # MLflow writes ./mlruns relative to the workdir, and `make data` writes data/ — the runner
 # must own /app (course Lab 1 notes: the provided image failed here on Linux).
 RUN mkdir -p /app/mlruns /app/data /app/reports && chown -R runner:runner /app

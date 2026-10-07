@@ -1,5 +1,5 @@
-# Continuous deployment (course Lab 4, Task 2) — written, not yet run: it needs the Azure
-# resources and the GitHub environment described in README, "Deploying".
+# Continuous deployment (course Lab 4, Task 2). Needs the GitHub environment `production` with
+# the secrets README, "Deploying", lists; without them it stops at azure/login.
 #
 # Runs only on main, only after CI is green. No stored keys: azure/login exchanges this run's
 # GitHub token for an Azure token as a user-assigned managed identity whose federated

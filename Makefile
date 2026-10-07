@@ -17,7 +17,7 @@ BASE_IMAGE := python:3.11-slim@sha256:9534e5a8e315485d4061ed659af0fd78a284c015f9
 UV := uv==0.12.23
 
 .PHONY: help setup lock cloud-check data validate test lint portability-audit scan-secrets check \
-        train image image-push reproduce verify runs seeds compare register promote rollback models reload-check \
+        train image image-push reproduce verify runs seeds compare register retrain-schedule retrain-once retrain-unschedule promote rollback models reload-check \
         train-remote job-image deploy run-now freeze unfreeze inject simulate simulate-freeze false-alarms stale-study \
         pipeline gate cost teardown teardown-verify clean
 
@@ -116,6 +116,15 @@ reload-check: ## Load a registered version from the registry and score rows: VER
 
 train-remote: image ## Train as an Azure ML command job on TRAINING_TARGET
 	$(PYTHON) scripts/train_remote.py --image $(IMAGE):$(TAG)
+
+retrain-schedule: image ## Weekly retraining: the pipeline as an Azure ML job, Sunday 02:00 UTC
+	$(PYTHON) scripts/retrain_schedule.py --image $(IMAGE):$(TAG)
+
+retrain-once: image ## One run of the scheduled retraining pipeline, now
+	$(PYTHON) scripts/retrain_schedule.py --once --image $(IMAGE):$(TAG)
+
+retrain-unschedule: ## Delete the retraining schedule
+	$(PYTHON) scripts/retrain_schedule.py --delete
 
 # --- Lab 3: deployment (batch) -------------------------------------------------------------
 job-image: ## Build the hourly job image (runtime dependencies only)

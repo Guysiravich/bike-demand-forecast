@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Delete everything the capstone created, and only that. WRITTEN, NOT YET RUN.
+# Delete everything the capstone created, and only that. Not run yet: it runs after grading.
 #
 #   bash infra/teardown.sh            # then, 24 hours later: make teardown-verify
 #

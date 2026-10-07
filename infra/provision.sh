@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Provision what the capstone adds to the labs' Azure resources. WRITTEN, NOT YET RUN: it waits
-# for proposal approval. Run from WSL, logged in with `az login`, in the labs' subscription.
+# Provision what the capstone adds to the shared base (infra/base.sh). Run 2026-10-07, from WSL,
+# logged in with `az login`.
 #
 #   bash infra/provision.sh
 #
-# Reuses from the labs (not created here): resource group, storage account, container registry,
+# Reuses the shared base (infra/base.sh, not created here): resource group, storage account, container registry,
 # the MLflow tracking server and the Azure ML workspace. Creates, all tagged
 # course=itcs355 student=<id> lab=capstone so `make teardown LAB=capstone` finds them:
 #

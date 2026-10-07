@@ -1,2 +1,8 @@
 [core]
     analytics = false
+    remote = public
+['remote "public"']
+    url = https://itcs3556688067.blob.core.windows.net/itcs355/bike/dvc
+['remote "storage"']
+    url = azure://itcs355/bike/dvc
+    account_name = itcs3556688067

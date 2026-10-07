@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Alert rules and the dashboard, as code (course Lab 4, Tasks 4-5). WRITTEN, NOT YET RUN.
+# Alert rules and the dashboard, as code (course Lab 4, Tasks 4-5). Run 2026-10-07.
 # Run after `make deploy`, when the two jobs exist:
 #
 #   ALERT_EMAILS="a@student.mahidol.ac.th b@student.mahidol.ac.th" bash infra/alerts.sh

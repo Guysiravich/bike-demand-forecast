@@ -27,3 +27,7 @@ reports/metrics.json
 reports/pipeline-metrics.json
 reports/gate-decision.txt
 reports/candidate.json
+
+# The tracking server's secrets, made by infra/tracking-server/make_secrets.sh on the VM
+infra/tracking-server/.env
+infra/tracking-server/auth.caddy

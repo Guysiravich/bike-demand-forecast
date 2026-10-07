@@ -77,8 +77,17 @@ the hour, the weather, the calendar and the real number of rentals. No personal 
 | Data fingerprint logged with every run | `e03de4ee4ef4dc37` |
 | DVC md5 (`data/raw/hour.csv.dvc`), logged as `data_version` | `d50bd5a6f55131e72a7bedc334e2fce1` |
 
-DVC tracks `data/raw/hour.csv`; Git tracks only the `.dvc` pointer. The DVC remote is added with
-the cloud storage; until then `make data` rebuilds the identical file from the source.
+DVC tracks `data/raw/hour.csv`; Git tracks only the `.dvc` pointer. Two remotes, one location
+(`.dvc/config`), as in Lab 1:
+
+| Remote | URL | Used for |
+|---|---|---|
+| `public` (default) | `https://itcs3556688067.blob.core.windows.net/itcs355/bike/dvc` | `dvc pull` — anonymous read, no Azure account |
+| `storage` | `azure://itcs355/bike/dvc`, account `itcs3556688067` | `dvc push` — the owner's Azure login |
+
+Tested from a fresh clone with no Azure login: `dvc pull` fetched `hour.csv` with the sha256
+above. `make reproduce` does not need DVC: `make data` fetches the same bytes from UCI and
+checks the same sha256, so the grader needs Docker and nothing else.
 
 **The split is by time, not at random** — train to June 2012, validate July–September, test
 October–December — because a forecaster never sees next week. This is the time-series form of
@@ -317,11 +326,19 @@ The gate (`scripts/evaluation_gate.py`) works on validation error, never test: t
 must beat "same hour last week" at 1 hour ahead, and beat the version `production` serves by
 more than twice the seed standard deviation (`reports/runs.md`).
 
+**Scheduled retraining** runs that same pipeline in the training image as an Azure ML job, every
+Sunday 02:00 UTC (`make retrain-schedule`; `make retrain-once` runs it now). It registers to
+`staging` at most — promotion to `production` stays a person's decision. Tested in the training
+image on 2026-10-08: ingest, 13 contract tests, train, GATE PASS, registered to `staging`. **Not
+left running:** the job registers to the tracking server, which is deallocated between sessions,
+so the schedule is created only while the server is up (`make retrain-unschedule` removes it;
+teardown does too).
+
 **What should trigger a retrain, for this system:**
 
 | Strategy | When it is right here | How it fails here |
 |---|---|---|
-| Fixed schedule (chosen: weekly) | demand drifts with season and the bike fleet; a week of new data is a real change | retrains on a week the feed was frozen, unless the contract tests stop it — they abort the pipeline first |
+| Fixed schedule (chosen: weekly, `make retrain-schedule`) | demand drifts with season and the bike fleet; a week of new data is a real change | retrains on a week the feed was frozen, unless the contract tests stop it — they abort the pipeline first |
 | Data volume threshold | per-station data arriving unevenly | every hour adds one row; volume is constant and the trigger is just a slow schedule |
 | Drift-triggered | a real shift in demand, e.g. a new bike-lane network | a frozen or broken feed *is* drift by every statistic — the worst case: it retrains on corrupted input and destroys the working model faster than any schedule would |
 
@@ -338,17 +355,26 @@ filtered by tag `lab=capstone`, once the jobs have run for a week.
 
 ## Deploying
 
-The labs' resource group, storage account, registry, tracking server and Azure ML workspace
-already exist and are reused. Everything the project adds is created by script and tagged
-`course=itcs355 student=<id> lab=capstone`:
+Everything runs from scripts in this repository, in this order. The first two build the shared
+base — resource group, storage, registry, Azure ML workspace and training cluster, and the MLflow
+tracking server. For this team they already exist from the course labs, so we skip them; their
+settings are recorded in `infra/base.sh` as read back from Azure. Everything the project adds is
+tagged `course=itcs355 student=<id> lab=capstone`:
 
 ```bash
+bash infra/base.sh                                   # base: storage, registry, Azure ML, cluster
+bash infra/tracking-server/provision_azure.sh        # the MLflow server VM; prints the next steps
 GITHUB_REPO=<owner>/<repo> bash infra/provision.sh   # identities, roles, OIDC trust, log workspace
 make cloud-check                                    # fill cloud.env from the script's output first
 make deploy ALIAS=production                        # push the job image, create both jobs
 ALERT_EMAILS="<both of us>" bash infra/alerts.sh    # alert rules and the dashboard, as code
 make run-now JOB=bike-forecast                      # first run, now
 ```
+
+**For CD**, in the repository's settings: an environment named `production` holding four secrets —
+`AZURE_CLIENT_ID` (the `bike-gha-id` identity's client id), `AZURE_TENANT_ID`,
+`AZURE_SUBSCRIPTION_ID` (all three printed by `provision.sh`; identifiers, not credentials — the
+login is OIDC) and `CLOUD_ENV` (the whole `cloud.env`, which holds the tracking server's password).
 
 **Identities and why each permission exists** (least privilege, course Lab 5 Task 2 — every
 role scoped to the one resource it needs):
@@ -441,7 +467,7 @@ scripts/        reproduce/verify, registry, deploy and smoke, pipeline and gate,
                 portability audit, secret scan, integration test
 tests/          unit, data contract, model behaviour, the frozen-feed alert, the pipeline gate
 pipeline/       the neutral DAG     monitoring/  SLOs, workbook     docs/  post-mortem template, demo
-infra/          provision, alerts and dashboard, teardown — written, not yet run
+infra/          base, tracking server, provision, alerts and dashboard (all run 2026-10-07), teardown
 reports/        metrics.json (make reproduce), runs.md, failure-drill.md, cost.md
 ```
 
