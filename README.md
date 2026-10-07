@@ -13,9 +13,9 @@ is named after a lab, it answers that lab's question for this system.
 
 > **Status (2026-10-08): deployed on Azure and run.** Trained as an Azure ML job, registered
 > with cloud lineage, served by two scheduled Container Apps Jobs, alerting by email; the frozen
-> feed drill ran in the cloud and the alert fired (evidence: "Cloud run" below). Still open: CD
-> needs its GitHub secrets, and the actual bill needs a week. Between sessions the schedule is
-> paused and the tracking server deallocated, to keep the bill down.
+> feed drill ran in the cloud and the alert fired, and CD deployed a commit end to end by OIDC
+> (evidence: "Cloud run" below). Still open: the actual bill needs a week. Between sessions the
+> schedule is paused and the tracking server deallocated, to keep the bill down.
 
 ---
 
@@ -417,9 +417,12 @@ the repeat count (charted, not paged), the rolling error, run duration and succe
 | Deployed | `bike-feeder`, `bike-forecast` (Container Apps Jobs), job image `bike-job@sha256:a91f74d8…` |
 | Smoke test | run `36fa67aeff7b`: ok, model version 1. Measured: feeder 32 s, forecast 36 s per execution |
 | Alerts and dashboard | `bike-weather-stale`, `bike-accuracy`, `bike-job-failed`, `bike-job-slow` → action group emailing both of us; workbook from `monitoring/workbook.json` |
+| **CD, end to end** | GitHub Actions CD #7 for commit `f711b73`: OIDC login (no stored key), job image built from the tested commit, pushed as `bike-job@sha256:56745251…`, both jobs updated, smoke test passed (execution `bike-forecast-hajvdd0`, Succeeded). Runs #4–#6 failed on the way: no secrets yet, then `LinkedAuthorizationFailed` (a missing role, below) |
 | **Frozen-feed drill** | `make freeze` 16:59:43 → first degraded run 17:00:30 (the model on the last reading, 120 min old) → **alert fired 17:01:31** → unfreeze 17:02:15 → next run ok |
 
-First deployment found five faults, each fixed in the code: the training cluster had no access
+First deployment found six faults, each fixed in the code. The sixth: CD's identity could write
+the jobs but not join them to their environment — fixed with Contributor on `bike-env`, and CD
+now puts a failed step's last lines in an annotation, readable without signing in. The first five: the training cluster had no access
 to the project's container (403, as in Lab 2); `get-shared-keys` takes no `--ids`; the CLI read
 the job's `-m` as its own option; an express Container Apps environment refuses jobs (as Lab 3's
 refused a canary); and a failed `az` command printed the tracking server's password in its error
@@ -432,6 +435,9 @@ az containerapp job update -g <rg> -n bike-feeder   --cron-expression "0 0 1 1 *
 az vm deallocate -g <rg> -n itcs355-mlflow
 # resume: az vm start ...; then make deploy (restores FORECAST_CRON)
 ```
+
+A push to `main` runs CD, and CD restores the hourly schedule and smoke-tests against the
+tracking server — so while paused, start the VM before pushing, and pause again after.
 
 **Teardown** deletes by tag, never by resource group, because the group also holds the labs:
 
