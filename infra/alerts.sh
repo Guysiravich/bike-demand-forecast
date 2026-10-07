@@ -33,6 +33,9 @@ echo "== roles that need the jobs to exist =="
 grant "$JOB_PRINCIPAL" "Monitoring Metrics Publisher" "$FORECAST_ID"
 grant "$GHA_PRINCIPAL" Contributor "$FORECAST_ID"
 grant "$GHA_PRINCIPAL" Contributor "$FEEDER_ID"
+# Updating a job also needs Microsoft.App/managedEnvironments/join/action on its environment
+# (LinkedAuthorizationFailed on the first CD run with secrets): Contributor on that one resource.
+grant "$GHA_PRINCIPAL" Contributor "$(az containerapp env show -g "$RG" -n bike-env --query id -o tsv)"
 
 echo "== action group: email both of us =="
 receivers=()

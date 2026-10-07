@@ -22,6 +22,7 @@
 #   bike-gha-id   AcrPush                           registry         CD pushes the job image
 #   bike-gha-id   Storage Blob Data Contributor     container `bike` CD uploads hour.csv; the smoke test reads state/last_run.json
 #   bike-gha-id   Contributor                       the two jobs     CD updates image and settings (alerts.sh, after the jobs exist)
+#   bike-gha-id   Contributor                       bike-env         joining a job to its environment on update (alerts.sh)
 #   bike-gha-id   Managed Identity Operator         bike-job-id      CD attaches the job identity to a job it updates
 #   bike-gha-id   Reader                            resource group   CD looks up the environment, jobs and identity before updating
 #

@@ -387,6 +387,7 @@ role scoped to the one resource it needs):
 | `bike-gha-id` (CD, OIDC) | AcrPush | registry | push the job image |
 | | Storage Blob Data Contributor | container `bike` | upload `hour.csv`; the smoke test reads `state/last_run.json` |
 | | Contributor | the two jobs | update their image and settings |
+| | Contributor | environment `bike-env` | an update re-joins the job to its environment (`managedEnvironments/join/action`); missed in the first design, found by the first CD run (`LinkedAuthorizationFailed`) |
 | | Managed Identity Operator | `bike-job-id` | attach the job identity to a job it updates |
 | | Reader | resource group | look up the environment, jobs and identity before updating |
 | labs' cluster identity (training) | AcrPull, Storage Blob Data Contributor | registry, labs' container | pull the training image, read data (course Lab 2) |
