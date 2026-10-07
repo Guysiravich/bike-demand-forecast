@@ -67,12 +67,27 @@ def _job_uri(uri: str) -> str:
     return f"wasbs://{container}@{account}{_BLOB_HOST_SUFFIX}/{path}"
 
 
+_SECRET_ARG = re.compile(r"^([\w-]*(password|secret|key|token)[\w-]*=).+$", re.IGNORECASE)
+
+
+def _redact(cmd: list[str]) -> str:
+    """The command as text for an error message, with secret values masked. A failed
+    `az containerapp job create` once printed the tracking server's password here (found on
+    first deploy); in CD that text lands in a public Actions log."""
+    return " ".join(_mask(part) for part in cmd)
+
+
+def _mask(part: str) -> str:
+    match = _SECRET_ARG.match(part)
+    return f"{match.group(1)}<redacted>" if match else part
+
+
 def _query(cmd: list[str]) -> str:
     """Run a CLI query and return STDOUT only. The containerapp extension prints a WARNING on
     stderr; an emptiness test on stdout+stderr sees a non-empty string (Lab 3)."""
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        raise RuntimeError(f"`{' '.join(cmd)}` failed ({result.returncode}):\n{result.stderr}")
+        raise RuntimeError(f"`{_redact(cmd)}` failed ({result.returncode}):\n{result.stderr}")
     return result.stdout.strip()
 
 
@@ -82,7 +97,7 @@ def _run(cmd: list[str]) -> str:
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(
-            f"`{' '.join(cmd)}` failed ({result.returncode}):\n{result.stdout}{result.stderr}"
+            f"`{_redact(cmd)}` failed ({result.returncode}):\n{result.stdout}{result.stderr}"
         )
     return result.stdout + result.stderr
 
@@ -279,16 +294,24 @@ class AzureAdapter(CloudAdapter):
         # are how a crash is explained within a minute during the demo.
         workspace = os.environ.get("JOB_LOG_WORKSPACE", "")
         if workspace:
+            # get-shared-keys takes no --ids (found on first deploy): name the group and workspace.
+            ws_group = workspace.split("/resourceGroups/", 1)[1].split("/", 1)[0]
+            ws_name = workspace.rstrip("/").rsplit("/", 1)[1]
             customer_id = _query(["az", "monitor", "log-analytics", "workspace", "show",
-                                  "--ids", workspace, "--query", "customerId", "-o", "tsv"])
+                                  "-g", ws_group, "-n", ws_name,
+                                  "--query", "customerId", "-o", "tsv"])
             key = _query(["az", "monitor", "log-analytics", "workspace", "get-shared-keys",
-                          "--ids", workspace, "--query", "primarySharedKey", "-o", "tsv"])
+                          "-g", ws_group, "-n", ws_name,
+                          "--query", "primarySharedKey", "-o", "tsv"])
             logs = ["--logs-destination", "log-analytics",
                     "--logs-workspace-id", customer_id, "--logs-workspace-key", key]
         else:
             logs = ["--logs-destination", "none"]
+        # WorkloadProfiles, not the default express mode: express refuses Job resources
+        # (ExpressEnvironmentResourceNotSupported, first deploy) as it refused Lab 3's canary.
+        # Jobs still run on the consumption profile and its free grant.
         _run(["az", "containerapp", "env", "create", "-g", group, "-n", environment,
-              "-l", self.cfg.region, *logs,
+              "-l", self.cfg.region, "--environment-mode", "WorkloadProfiles", *logs,
               "--tags", *[f"{k}={v}" for k, v in self.cfg.tags().items()], "-o", "none"])
 
     def deploy(self, model_ref: str, endpoint: str, instance: str) -> str:
@@ -367,7 +390,9 @@ class AzureAdapter(CloudAdapter):
                   "--mi-user-assigned", identity,
                   "--registry-server", registry, "--registry-identity", identity,
                   "--secrets", *secrets, "--env-vars", *env_args,
-                  "--command", "python", "--args", "-m", module,
+                  # The image's ENTRYPOINT is `python -m`; the module is its argument. Passing
+                  # "-m" here makes the CLI read it as its own option (found on first deploy).
+                  "--args", module,
                   "--tags", *[f"{k}={v}" for k, v in self.cfg.tags().items()]])
         return _query(["az", "containerapp", "job", "show", "-g", group, "-n", endpoint,
                        "--query", "id", "-o", "tsv"])

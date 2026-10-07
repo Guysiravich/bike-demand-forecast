@@ -40,7 +40,7 @@ flowchart LR
 | 1:00–2:00 | Jirath | The architecture slide: build, ship, operate. One image per role, models by alias, everything through the adapter. | diagram above |
 | 2:00–4:30 | Jirath drives | **Live:** workbook healthy → `make freeze` → two ticks later (the reading passes 60 min): output `degraded`, still the model on the last reading → alert email arrives (Siravich made the failure; Jirath reads the alert first) → `make unfreeze` → next tick `ok` | workbook, `forecasts/latest.json`, inbox |
 | 4:30–6:00 | Siravich | **What it revealed:** the first design fell back to "same hour last week" — 72.1 against 54.6 for doing nothing. Changed to keep the model for 48 h, and the CI test that keeps it that way. The repeat alert would have paged ~50 times a year: now charted only. | `reports/failure-drill.md` tables, the CI test |
-| 6:00–7:00 | Jirath | **Cost:** 0.015 THB a run; 38.7 THB per 1,000 forecasts at today's volume because the fixed costs dominate; 4.4 at ten areas. The Azure ML schedule we did not use: ~860 THB a month. | `reports/cost.md` |
+| 6:00–7:00 | Jirath | **Cost:** 0.034 THB a tick (measured 68 s of job time); 39.5 THB per 1,000 forecasts at today's volume because the fixed costs dominate; 5.2 at ten areas. The Azure ML schedule we did not use: ~860 THB a month. | `reports/cost.md` |
 | 7:00–8:00 | Siravich | **Another week:** per-station data; a weather forecast instead of the last reading; the model artifact in blob so the tracking server can sleep; the stale study extended past 48 h. | MODEL_CARD |
 
 **Backup:** record the live section beforehand (with the jobs at a 5-minute tick, freeze → email

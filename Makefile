@@ -156,7 +156,7 @@ gate: ## The registration gate alone, against reports/metrics.json
 	$(PYTHON) scripts/evaluation_gate.py --metrics reports/metrics.json
 
 cost: ## Cost per 1,000 forecasts: make cost DURATION=<s per run> [ACTUAL=<THB from billing>]
-	$(PYTHON) scripts/cost_report.py --duration-s $(or $(DURATION),30) $(if $(ACTUAL),--actual-thb $(ACTUAL),)
+	$(PYTHON) scripts/cost_report.py --duration-s $(or $(DURATION),68) $(if $(ACTUAL),--actual-thb $(ACTUAL),)
 
 teardown: ## Delete every resource tagged lab=$(LAB): make teardown LAB=capstone [DRY_RUN=1]
 	@test -n "$(LAB)" || { echo "refusing to run without LAB=<tag>: make teardown LAB=capstone"; exit 1; }

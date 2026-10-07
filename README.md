@@ -11,10 +11,11 @@ The repository follows the course's three-layer contract and lab conventions thr
 same `cloud.env` slots, the same `CloudAdapter`, the same `make` targets. Where a section below
 is named after a lab, it answers that lab's question for this system.
 
-> **Status (2026-10-06): everything below the "Deploying" heading runs on one machine with no
-> cloud account, and was run.** The Azure adapter, CD workflow and job deployment are written
-> but not yet run against Azure; they wait for proposal approval. Nothing here claims a cloud
-> result that has not happened.
+> **Status (2026-10-08): deployed on Azure and run.** Trained as an Azure ML job, registered
+> with cloud lineage, served by two scheduled Container Apps Jobs, alerting by email; the frozen
+> feed drill ran in the cloud and the alert fired (evidence: "Cloud run" below). Still open: CD
+> needs its GitHub secrets, and the actual bill needs a week. Between sessions the schedule is
+> paused and the tracking server deallocated, to keep the bill down.
 
 ---
 
@@ -335,7 +336,7 @@ filtered by tag `lab=capstone`, once the jobs have run for a week.
 
 ---
 
-## Deploying (scripts written, not yet run)
+## Deploying
 
 The labs' resource group, storage account, registry, tracking server and Azure ML workspace
 already exist and are reused. Everything the project adds is created by script and tagged
@@ -364,18 +365,46 @@ role scoped to the one resource it needs):
 | | Reader | resource group | look up the environment, jobs and identity before updating |
 | labs' cluster identity (training) | AcrPull, Storage Blob Data Contributor | registry, labs' container | pull the training image, read data (course Lab 2) |
 
-The assessed part of Lab 5 Task 2 — remove one permission and record what breaks — is planned
-for first deployment: remove `Monitoring Metrics Publisher` from `bike-job-id`. Prediction, to
-check: `emit_metric` gets HTTP 403, the run fails — and the failed-run alert stays silent,
-because it reads `job_success`, which the job can no longer post. If that holds, the fix is a
-second alert on the platform's own count of failed job executions, which needs no permission
-from the job.
+**The assessed part of Lab 5 Task 2 — remove one permission and record what breaks.** Removed
+`Monitoring Metrics Publisher` from `bike-job-id` at 17:05:26 UTC on 2026-10-07. Prediction:
+`emit_metric` gets HTTP 403, the run fails, and the failed-run alert stays silent because the job
+can no longer post `job_success`. **What happened:** the run at 17:11, six minutes later, completed
+and posted its metrics — nothing broke. Removing a role is not immediate: the platform kept
+honouring the identity's earlier authorisation for longer than we waited. The finding that
+stands is the operational one — a permission removed during an incident does not take effect
+for minutes, so "revoke and watch" cannot be the response to a leaked identity; deleting the
+identity is. The prediction itself is still untested; the role was restored at 17:16:07.
 
 **Alerts** (`infra/alerts.sh`) are the job's own rules as Azure Monitor metric alerts on the
 forecast job, emailing both of us: weather older than 60 minutes, rolling 1-hour error above
 the production version's threshold, a failed run, a run over 300 s. **The dashboard** is
 `monitoring/workbook.json`, deployed as an Azure Monitor workbook: weather age, degraded runs,
 the repeat count (charted, not paged), the rolling error, run duration and success.
+
+### Cloud run — 2026-10-07 (UTC)
+
+| What | Evidence |
+|---|---|
+| Training as a managed job | Azure ML job `bike-26b5a72abe61`, image `bike-train@sha256:9b99ff77…`, from commit `998250d` |
+| Registered with lineage | `bike-demand` v1: git_commit `998250d`, data_version `d50bd5a6…`, training_job_id `bike-26b5a72abe61`, image_digest `sha256:9b99ff77…`, seed 20260920, metric_test 55.7611 — the same digits as `make reproduce` on a laptop |
+| Deployed | `bike-feeder`, `bike-forecast` (Container Apps Jobs), job image `bike-job@sha256:a91f74d8…` |
+| Smoke test | run `36fa67aeff7b`: ok, model version 1. Measured: feeder 32 s, forecast 36 s per execution |
+| Alerts and dashboard | `bike-weather-stale`, `bike-accuracy`, `bike-job-failed`, `bike-job-slow` → action group emailing both of us; workbook from `monitoring/workbook.json` |
+| **Frozen-feed drill** | `make freeze` 16:59:43 → first degraded run 17:00:30 (the model on the last reading, 120 min old) → **alert fired 17:01:31** → unfreeze 17:02:15 → next run ok |
+
+First deployment found five faults, each fixed in the code: the training cluster had no access
+to the project's container (403, as in Lab 2); `get-shared-keys` takes no `--ids`; the CLI read
+the job's `-m` as its own option; an express Container Apps environment refuses jobs (as Lab 3's
+refused a canary); and a failed `az` command printed the tracking server's password in its error
+— now every error masks secret values before it is shown.
+
+**Pausing between sessions** (cost: the tracking server is ~10.5 THB a day while the jobs need it):
+
+```bash
+az containerapp job update -g <rg> -n bike-feeder   --cron-expression "0 0 1 1 *"   # and bike-forecast
+az vm deallocate -g <rg> -n itcs355-mlflow
+# resume: az vm start ...; then make deploy (restores FORECAST_CRON)
+```
 
 **Teardown** deletes by tag, never by resource group, because the group also holds the labs:
 

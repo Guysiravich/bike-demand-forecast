@@ -1,9 +1,8 @@
 # Post-mortem — the weather feed froze (planned failure, local drill)
 
 First drill run on 2026-10-06 on one machine: `make simulate-freeze` and
-`scripts/integration_test.sh` (the job image). Follow-up and re-run on 2026-10-07, below. The
-cloud drill — alert by email, read first by the teammate who did not cause it — follows
-deployment. Template: `docs/postmortem-template.md`.
+`scripts/integration_test.sh` (the job image). Follow-up and re-run on 2026-10-07, and the same
+drill on Azure the same day, below. Template: `docs/postmortem-template.md`.
 
 **What fired:**
 At simulated 04:00, one tick after the feed froze at 03:00: `FEED: weather is 120 min old
@@ -83,6 +82,21 @@ Before the change, the same ticks served the baseline and the rolling error reac
 tick 11, firing the accuracy alert. In the job image (`scripts/integration_test.sh`) the
 sequence ran container by container: healthy runs served model version 1; after the freeze the
 job reported `degraded`, kept the model on the last reading, and wrote `alerts/<hour>.json`.
+
+## The cloud drill, 2026-10-07 (UTC)
+
+On Azure: the two Container Apps Jobs, model version 1 from the registry, the alert rule
+`bike-weather-stale` (max weather_age_min > 60) emailing both of us. Siravich froze the feed.
+
+| Time (run times: when its smoke test reported) | Event |
+|---|---|
+| 16:59:43 | `make freeze` — writes `control/feed_mode.json` in blob storage |
+| 17:00:30 | first run after the freeze: `degraded`, "model on the last reading, 120 min old" |
+| 17:01:15 | second run: `degraded`, 180 min old |
+| **17:01:31** | **alert `bike-weather-stale` fired** — 1 min 48 s after the freeze |
+| 17:02:15 | `make unfreeze`; the next run was `ok` |
+
+Same detection and the same response as the local drill, now through Azure Monitor and email.
 
 ## The price of the repeat rule — `make false-alarms`
 
