@@ -15,11 +15,26 @@
         "version": "MetricsItem/2.0",
         "size": 0,
         "chartType": 2,
-        "resourceIds": ["{forecast_job_id}"],
-        "timeContext": {"durationMs": 86400000},
-        "metrics": [{"namespace": "bike", "metric": "bike--weather_age_min", "aggregation": 3}],
+        "resourceIds": [
+          "{forecast_job_id}"
+        ],
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "metrics": [
+          {
+            "namespace": "bike",
+            "metric": "bike--weather_age_min",
+            "aggregation": 3,
+            "splitBy": null
+          }
+        ],
         "title": "Weather age, minutes — pages above 60 (the planned failure)",
-        "gridSettings": {"rowLimit": 10000}
+        "gridSettings": {
+          "rowLimit": 10000
+        },
+        "resourceType": "microsoft.app/jobs",
+        "metricScope": 0
       },
       "name": "weather-age"
     },
@@ -30,13 +45,29 @@
         "version": "MetricsItem/2.0",
         "size": 0,
         "chartType": 2,
-        "resourceIds": ["{forecast_job_id}"],
-        "timeContext": {"durationMs": 86400000},
-        "metrics": [
-          {"namespace": "bike", "metric": "bike--degraded", "aggregation": 3},
-          {"namespace": "bike", "metric": "bike--alerts_fired", "aggregation": 3}
+        "resourceIds": [
+          "{forecast_job_id}"
         ],
-        "title": "Degraded output and alerts fired, per run"
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "metrics": [
+          {
+            "namespace": "bike",
+            "metric": "bike--degraded",
+            "aggregation": 3,
+            "splitBy": null
+          },
+          {
+            "namespace": "bike",
+            "metric": "bike--alerts_fired",
+            "aggregation": 3,
+            "splitBy": null
+          }
+        ],
+        "title": "Degraded output and alerts fired, per run",
+        "resourceType": "microsoft.app/jobs",
+        "metricScope": 0
       },
       "name": "degraded"
     },
@@ -47,10 +78,23 @@
         "version": "MetricsItem/2.0",
         "size": 0,
         "chartType": 2,
-        "resourceIds": ["{forecast_job_id}"],
-        "timeContext": {"durationMs": 86400000},
-        "metrics": [{"namespace": "bike", "metric": "bike--weather_repeat_count", "aggregation": 3}],
-        "title": "Identical readings in a row — charted, not paged (real weather repeats ~50 times a year)"
+        "resourceIds": [
+          "{forecast_job_id}"
+        ],
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "metrics": [
+          {
+            "namespace": "bike",
+            "metric": "bike--weather_repeat_count",
+            "aggregation": 3,
+            "splitBy": null
+          }
+        ],
+        "title": "Identical readings in a row — charted, not paged (real weather repeats ~50 times a year)",
+        "resourceType": "microsoft.app/jobs",
+        "metricScope": 0
       },
       "name": "repeat"
     },
@@ -61,10 +105,23 @@
         "version": "MetricsItem/2.0",
         "size": 0,
         "chartType": 2,
-        "resourceIds": ["{forecast_job_id}"],
-        "timeContext": {"durationMs": 604800000},
-        "metrics": [{"namespace": "bike", "metric": "bike--rolling_mae_1h", "aggregation": 4}],
-        "title": "Rolling 1-hour error, rentals/hour — pages above the version's threshold (76.1 for v1)"
+        "resourceIds": [
+          "{forecast_job_id}"
+        ],
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "metrics": [
+          {
+            "namespace": "bike",
+            "metric": "bike--rolling_mae_1h",
+            "aggregation": 4,
+            "splitBy": null
+          }
+        ],
+        "title": "Rolling 1-hour error, rentals/hour — pages above the version's threshold (76.1 for v1)",
+        "resourceType": "microsoft.app/jobs",
+        "metricScope": 0
       },
       "name": "accuracy"
     },
@@ -75,13 +132,29 @@
         "version": "MetricsItem/2.0",
         "size": 0,
         "chartType": 2,
-        "resourceIds": ["{forecast_job_id}"],
-        "timeContext": {"durationMs": 604800000},
-        "metrics": [
-          {"namespace": "bike", "metric": "bike--job_duration_s", "aggregation": 3},
-          {"namespace": "bike", "metric": "bike--job_success", "aggregation": 2}
+        "resourceIds": [
+          "{forecast_job_id}"
         ],
-        "title": "Run duration (SLO 300 s) and success (SLO 99% over 30 days)"
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "metrics": [
+          {
+            "namespace": "bike",
+            "metric": "bike--job_duration_s",
+            "aggregation": 3,
+            "splitBy": null
+          },
+          {
+            "namespace": "bike",
+            "metric": "bike--job_success",
+            "aggregation": 2,
+            "splitBy": null
+          }
+        ],
+        "title": "Run duration (SLO 300 s) and success (SLO 99% over 30 days)",
+        "resourceType": "microsoft.app/jobs",
+        "metricScope": 0
       },
       "name": "job"
     }
