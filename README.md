@@ -406,7 +406,7 @@ identity is. The prediction itself is still untested; the role was restored at 1
 forecast job, emailing both of us: weather older than 60 minutes, rolling 1-hour error above
 the production version's threshold, a failed run, a run over 300 s. **The dashboard** is
 `monitoring/workbook.json`, deployed as an Azure Monitor workbook (Monitor → Workbooks → "Bike
-forecast"): weather age, degraded runs,
+forecast"), checked in the portal on 2026-10-08 with the drill's data on it: weather age, degraded runs,
 the repeat count (charted, not paged), the rolling error, run duration and success.
 
 ### Cloud run — 2026-10-07 (UTC)
