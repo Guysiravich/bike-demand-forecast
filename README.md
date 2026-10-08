@@ -405,7 +405,8 @@ identity is. The prediction itself is still untested; the role was restored at 1
 **Alerts** (`infra/alerts.sh`) are the job's own rules as Azure Monitor metric alerts on the
 forecast job, emailing both of us: weather older than 60 minutes, rolling 1-hour error above
 the production version's threshold, a failed run, a run over 300 s. **The dashboard** is
-`monitoring/workbook.json`, deployed as an Azure Monitor workbook: weather age, degraded runs,
+`monitoring/workbook.json`, deployed as an Azure Monitor workbook (Monitor → Workbooks → "Bike
+forecast"): weather age, degraded runs,
 the repeat count (charted, not paged), the rolling error, run duration and success.
 
 ### Cloud run — 2026-10-07 (UTC)
@@ -432,9 +433,17 @@ refused a canary); and a failed `az` command printed the tracking server's passw
 
 ```bash
 az containerapp job update -g <rg> -n bike-feeder   --cron-expression "0 0 1 1 *"   # and bike-forecast
+az monitor metrics alert update -g <rg> -n bike-job-failed --enabled false        # and the other three
 az vm deallocate -g <rg> -n itcs355-mlflow
-# resume: az vm start ...; then make deploy (restores FORECAST_CRON)
+# resume: az vm start ...; make deploy (restores FORECAST_CRON); alerts --enabled true
 ```
+
+The alerts go off with the schedule because **no data reads as zero**: an hour after the last
+run, `bike-job-failed` (`min job_success < 1` over 60 minutes) fired and emailed us at 20:05 UTC
+on 2026-10-07, though every execution had succeeded — the schedule had simply been paused at
+19:04. So the rule also catches a run that never happened, which the freshness SLO needs; but it
+is named "a forecast run failed", and the 02:00 page sent the reader looking for an exception
+that was not there. Next change: a separate `bike-run-missing` rule with its own wording.
 
 A push to `main` runs CD, and CD restores the hourly schedule and smoke-tests against the
 tracking server — so while paused, start the VM before pushing, and pause again after.
@@ -488,5 +497,9 @@ reports/        metrics.json (make reproduce), runs.md, failure-drill.md, cost.m
 | Planned failure and its test | Siravich | Jirath |
 | README, model card, slides | shared | shared |
 
-Every pull request is reviewed by the other person. Whoever builds the planned failure is not
-the one who first watches its alert fire.
+The table is the division of responsibility from the proposal. The proposal also promised that
+every pull request would be reviewed by the other person; that is not how this repository was
+built. Commits went straight to `main` from one account, and no pull request has been merged.
+`main` has no branch protection, so nothing enforces review — CI is the only gate a change
+passes before CD deploys it. The alert emails both of us; in the drill, the one who did not
+freeze the feed is the one who responds.

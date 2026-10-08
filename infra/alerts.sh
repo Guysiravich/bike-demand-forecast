@@ -77,7 +77,10 @@ body = {
     "kind": "shared",
     "tags": {"course": "itcs355", "student": os.environ.get("STUDENT", "6688067"), "lab": "capstone"},
     "properties": {"displayName": "Bike forecast", "category": "workbook",
-                   "serializedData": content, "sourceId": os.environ["FORECAST_ID"]},
+                   "serializedData": content,
+                   # "azure monitor" lists it in Monitor > Workbooks; a resource id here hides
+                   # it under that one resource's blade (found when the gallery showed nothing).
+                   "sourceId": "azure monitor"},
 }
 json.dump(body, open(sys.argv[1], "w"))
 PY
