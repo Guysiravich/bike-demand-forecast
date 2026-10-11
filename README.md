@@ -346,8 +346,12 @@ teardown does too).
 
 ## Cost (Lab 3 Task 5, Lab 5 Task 5)
 
+**Cost per 1,000 predictions: 39.5 THB** for the service as designed (hourly runs, tracking
+server up 24 hours) — 1.41 THB for the job alone at list price, and 0 as billed, since every run
+fell inside the free grant. One prediction is one forecast row; a run makes 24.
+
 `make cost DURATION=<seconds per run>` writes `reports/cost.md`: the marginal cost of a run, the
-fixed costs that dominate, and cost per 1,000 forecasts at three volumes (the batch analogue of
+fixed costs that dominate, and cost per 1,000 predictions at three volumes (the batch analogue of
 the course's three utilisation assumptions). **Actual, from Cost Management (1–10 October):**
 the project's own resources (tag `lab=capstone`) cost **0 USD** — every job run fell inside the
 Container Apps free grant — and the shared base cost 3.52 USD (117 THB), 11.2 THB a day against
