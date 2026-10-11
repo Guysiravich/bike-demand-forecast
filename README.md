@@ -14,7 +14,7 @@ is named after a lab, it answers that lab's question for this system.
 > **Status (2026-10-08): deployed on Azure and run.** Trained as an Azure ML job, registered
 > with cloud lineage, served by two scheduled Container Apps Jobs, alerting by email; the frozen
 > feed drill ran in the cloud and the alert fired, and CD deployed a commit end to end by OIDC
-> (evidence: "Cloud run" below). Still open: the actual bill needs a week. Between sessions the
+> (evidence: "Cloud run" below). The actual bill is in (`reports/cost.md`). Between sessions the
 > schedule is paused and the tracking server deallocated, to keep the bill down.
 
 ---
@@ -348,8 +348,12 @@ teardown does too).
 
 `make cost DURATION=<seconds per run>` writes `reports/cost.md`: the marginal cost of a run, the
 fixed costs that dominate, and cost per 1,000 forecasts at three volumes (the batch analogue of
-the course's three utilisation assumptions). The actual figure comes from Cost Management
-filtered by tag `lab=capstone`, once the jobs have run for a week.
+the course's three utilisation assumptions). **Actual, from Cost Management (1–10 October):**
+the project's own resources (tag `lab=capstone`) cost **0 USD** — every job run fell inside the
+Container Apps free grant — and the shared base cost 3.52 USD (117 THB), 11.2 THB a day against
+an estimated 11.3. The invoice email reads USD 0 because Azure for Students charges usage to the
+student credit. The gap, explained, is in `reports/cost.md` (sections 2–3, from
+`reports/cost-actual.md`).
 
 ---
 
