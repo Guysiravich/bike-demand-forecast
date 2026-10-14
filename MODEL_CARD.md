@@ -58,6 +58,9 @@ Every registered version carries: `git_commit`, `data_version`, `mlflow_run_id`,
 
 ## What another week would buy
 
-Per-station forecasts, if station-level data can be licensed; a real weather forecast in place
-of the reading at issue time, which would fix the 24-hour weakness; and the stale-reading study
-extended past 48 hours, with freezes at every hour of the day rather than 06:00 only.
+In order: load the promoted model from blob storage by version, so the tracking server stops
+being every run's single point of failure; a real weather forecast in place of the reading at
+issue time, which would fix the 24-hour weakness; per-station forecasts, if station-level data can
+be licensed; a separate "run missing" alert, since an hour with no runs reads as a failed run.
+Also: the stale-reading study extended past 48 hours, with freezes at every hour of the day rather
+than 06:00 only, and the drift plan in README.md ("Drift after deployment").

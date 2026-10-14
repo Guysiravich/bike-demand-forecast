@@ -342,6 +342,52 @@ teardown does too).
 | Data volume threshold | per-station data arriving unevenly | every hour adds one row; volume is constant and the trigger is just a slow schedule |
 | Drift-triggered | a real shift in demand, e.g. a new bike-lane network | a frozen or broken feed *is* drift by every statistic — the worst case: it retrains on corrupted input and destroys the working model faster than any schedule would |
 
+### Drift after deployment: what exists, what is missing, and the plan
+
+Asked at the presentation: what happens when the model slowly gets worse after it is deployed?
+**This section is a plan. Only the first table is built.**
+
+**Already in place.** This problem has an unusually short label delay: the real count for an hour
+arrives one hour later, so the model's own error is measured live rather than guessed from inputs.
+
+| Piece | What it does today |
+|---|---|
+| `rolling_mae_1h` + alert `bike-accuracy` | the last 6 one-hour-ahead errors against the real counts; pages above 1.5 × the version's validation error (76.1 for v1) |
+| Retraining pipeline + gate | `make retrain-once` / `make retrain-schedule`: contract tests, train, gate, register to `staging` — tested once, **not left running** (it needs the tracking server up) |
+| Rollback | `make rollback` moves the `production` alias back one version |
+
+**Missing.** Nothing watches the *inputs*, so a shift is seen only once it already costs accuracy.
+The error is one city-wide number: a model that fails only at the evening peak, or only on
+weekends, is averaged away. Nothing compares a retrained `staging` model with `production` on
+live hours before a person promotes it. And the weekly retrain does not run on its own.
+
+**The plan, in order:**
+
+1. **Input drift, charted — not paged.** Each run compares the last 7 days of weather readings
+   and rental counts with the training data, one population stability index per feature, emitted
+   as `drift_<feature>` and added to the workbook. Charted only, for the reason in the table above:
+   a frozen feed is drift by every statistic, and the age alert already pages for that.
+2. **Error by segment.** Add the 7-day error by hour of day and by working day / weekend to the
+   workbook, next to the version's validation error, so slow decay shows up before the 6-run
+   rolling alert crosses its line.
+3. **A decision tree for `bike-accuracy`**, extending the Lab 4 one this README already follows:
+   - weather stale or degraded → the feed broke → fix the feed (the planned-failure branch)
+   - a new version promoted in the last 24 h → the model broke → `make rollback`
+   - otherwise, error above the line for 3 days and input drift charted → real drift →
+     `make retrain-once` → the gate → `staging`
+4. **Shadow before promotion.** For 48 h the job also scores `staging` on the same live hours and
+   writes `forecasts/shadow/`; the person promotes only if its error is lower. The gate tested the
+   new model on old data; this tests it on the new world.
+5. **Keep the weekly retrain running.** Once the job loads the model from blob storage (the first
+   item in MODEL_CARD.md, "What another week would buy"), the tracking server need not stay up for serving, and the weekly
+   schedule can run every Sunday as designed.
+6. **Tests to go with it:** shift the counts by 1.5× from a set date in a synthetic copy of the
+   data, and check that the drift chart moves, `bike-accuracy` fires, the decision tree picks
+   "retrain" rather than "fix the feed", and the retrained model passes the gate.
+
+Retraining stays a person's decision throughout. An automatic drift-triggered retrain is the one
+strategy the table above rules out for this system.
+
 ---
 
 ## Cost (Lab 3 Task 5, Lab 5 Task 5)
