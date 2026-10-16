@@ -1,0 +1,13 @@
+# make models equivalent — bike-demand version 1, read from the tracking server on 2026-10-17
+aliases: ['production']
+  data_fingerprint = e03de4ee4ef4dc37
+  data_version = d50bd5a6f55131e72a7bedc334e2fce1
+  git_commit = 998250d1a39246944210d9ceb0c3bc91b68c6aaf
+  image_digest = sha256:9b99ff77f0c2bbbe092a6d4a5ff4ffa0e7bff3a6889efff5d7269e737299bb0e
+  mae_alert_threshold = 76.08498443137373
+  metric_test = 55.761098489579325
+  metric_val = 55.071056078062675
+  mlflow_run_id = 3b0c40cffe3447ab8afafe982546b674
+  seed = 20260920
+  training_job_id = bike-26b5a72abe61
+

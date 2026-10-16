@@ -510,6 +510,27 @@ bash infra/teardown.sh                 # jobs, then everything tagged, then the 
 make teardown-verify                   # now and again 24 hours later; then screenshot the portal
 ```
 
+### Evidence, captured before teardown (2026-10-17)
+
+The cloud resources are deleted after submission, so what they showed is kept here. The
+second drill below is the presentation rehearsal of 11–12 October (UTC), driven by hand:
+feeder, then forecast, one simulated hour at a time.
+
+| # | Shows | File |
+|---|---|---|
+| 1 | The dashboard: weather age jumps to 120 min when the feed freezes; `degraded` and `alerts_fired` follow | [01-workbook.png](docs/evidence/01-workbook.png) |
+| 2 | `bike-weather-stale` **fired** at 17:09 UTC on 11 Oct; `bike-accuracy` fired too, at 05:53 UTC on 12 Oct, while the feed was still frozen — the backstop the age rule relies on (its window is 6 runs, so a few bad hours move it) | [02-alerts-fired.png](docs/evidence/02-alerts-fired.png) |
+| 3 | The four alert rules and their conditions. *Disabled* because the system is paused (above) | [03-alert-rules.png](docs/evidence/03-alert-rules.png) |
+| 4 | The alert email, with the rule's instruction: "Fix the feed; do not retrain" | [04-alert-email.png](docs/evidence/04-alert-email.png) |
+| 5 | `bike-forecast` executions on Container Apps — all Succeeded, 33–48 s each | [05-job-executions.png](docs/evidence/05-job-executions.png) |
+| 6 | Structured JSON logs in Log Analytics: `start` / `done` per run, simulated time, weather age 0 → 60 → 120 | [06-job-logs.png](docs/evidence/06-job-logs.png) |
+| 7a | Cost by resource, month to date: 5.40 USD, all of it the shared base (registry, tracking-server IP and disk) — about 11.2 THB a day, as in `reports/cost.md` | [07a-cost-by-resource.png](docs/evidence/07a-cost-by-resource.png) |
+| 7b | Everything tagged `lab=capstone` — what teardown deletes | [07b-capstone-resources.png](docs/evidence/07b-capstone-resources.png) |
+| 8 | CD #7 green for `f711b73` | [08-cd-green.png](docs/evidence/08-cd-green.png) |
+| 9 | CI #7 green for the same commit: secrets, test, build | [09-ci-green.png](docs/evidence/09-ci-green.png) |
+| 10 | `bike-demand` v1, alias `production`, lineage tags (the table scrolls in the UI; every tag, read from the registry, is in the text file) | [10-model-version-tags-1.png](docs/evidence/10-model-version-tags-1.png) · [10-model-version-tags.txt](docs/evidence/10-model-version-tags.txt) |
+| 11 | The training run behind v1: metrics, parameters (Poisson loss, seed 20260920), the Azure ML job id | [11-training-run.png](docs/evidence/11-training-run.png) |
+
 ---
 
 ## Setup for development
