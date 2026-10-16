@@ -78,8 +78,14 @@ class Config:
         return self.data_dir / "raw" / "hour.csv"
 
     def tags(self, lab: str = RESOURCE_LAB) -> dict[str, str]:
-        """Every cloud resource carries these. `make teardown` finds resources by tag."""
-        return {"course": "itcs355", "student": self.project_id, "lab": str(lab)}
+        """Every cloud resource carries these. `make teardown` finds resources by tag.
+
+        `student` is the bare student id, as infra/*.sh write it (STUDENT=6688067). It used to
+        be the whole PROJECT_ID, so teardown matched only what Python created and missed the
+        alerts, identities and log workspace the shell scripts created.
+        """
+        student = self.project_id.removeprefix("itcs355-")
+        return {"course": "itcs355", "student": student, "lab": str(lab)}
 
 
 def load(strict: bool = True) -> Config:

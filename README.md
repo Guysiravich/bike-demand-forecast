@@ -531,6 +531,28 @@ feeder, then forecast, one simulated hour at a time.
 | 10 | `bike-demand` v1, alias `production`, lineage tags (the table scrolls in the UI; every tag, read from the registry, is in the text file) | [10-model-version-tags-1.png](docs/evidence/10-model-version-tags-1.png) · [10-model-version-tags.txt](docs/evidence/10-model-version-tags.txt) |
 | 11 | The training run behind v1: metrics, parameters (Poisson loss, seed 20260920), the Azure ML job id | [11-training-run.png](docs/evidence/11-training-run.png) |
 
+### Teardown — 2026-10-17
+
+Deleted: both jobs and the retraining schedule, the four alert rules, the action group, the
+workbook, both identities (and five role assignments left orphaned by them), and the blob
+container `bike`. `make teardown-verify` then printed `PASS  nothing found under these tags`
+([12-teardown-verify.txt](docs/evidence/12-teardown-verify.txt)), and the portal, filtered by
+`lab equals capstone`, lists nothing ([12-portal-capstone-empty.png](docs/evidence/12-portal-capstone-empty.png)).
+
+**What teardown found wrong with itself.** `teardown-verify` first reported almost nothing left
+while nine capstone resources still existed. The shell scripts in `infra/` tag `student=6688067`;
+the Python side tagged `student=itcs355-6688067`, so teardown and its verification only saw what
+Python had created. `Config.tags()` now uses the bare id, and teardown matches both spellings.
+A verification that shares the deleter's blind spot proves nothing — it was caught by listing
+the group by the `lab` tag alone, which still showed the alerts.
+
+**Kept, and why.** `bike-env` and its log workspace `bike-logs` now host Lab 5's
+`itcs355-staging` app, so they were retagged `lab=5` and go with Lab 5's teardown. The labs'
+storage account, registry, Azure ML workspace and tracking-server VM (tags `lab=1`, `lab=2`)
+are still in use for Lab 5 and were never the capstone's to delete; the VM is deallocated.
+The resource group itself had picked up a `lab=capstone` tag outside these scripts; that key was
+removed, since the group holds every lab, so the portal's `lab : capstone` view is empty.
+
 ---
 
 ## Setup for development

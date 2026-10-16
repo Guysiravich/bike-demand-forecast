@@ -1,0 +1,6 @@
+$ make teardown-verify          # 2026-10-17, after infra/teardown.sh and the retag of bike-env / bike-logs to lab=5
+python scripts/teardown_verify.py --lab capstone
+searching for resources tagged {'course': 'itcs355', 'student': '6688067', 'lab': 'capstone'}
+
+PASS  nothing found under these tags
+Still check the console. An untagged resource is invisible to this script and will keep billing.

@@ -476,7 +476,15 @@ class AzureAdapter(CloudAdapter):
         """
         if "lab" not in tags or "course" not in tags:
             raise ValueError(f"teardown needs the course and lab tags; got {tags}")
-        query = " && ".join(f"tags.{k} == '{v}'" for k, v in tags.items())
+        clauses = []
+        for k, v in tags.items():
+            if k == "student":
+                # Resources created before the student tag was fixed carry the whole project
+                # id ("itcs355-6688067"); match both spellings so none is left behind.
+                clauses.append(f"(tags.student == '{v}' || tags.student == 'itcs355-{v}')")
+            else:
+                clauses.append(f"tags.{k} == '{v}'")
+        query = " && ".join(clauses)
         ids = _query(["az", "resource", "list", "--query", f"[?{query}].id", "-o", "tsv"]).split()
         if dry_run:
             return ids
